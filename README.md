@@ -5,6 +5,7 @@ A Flask-based food inventory and expiry tracking web app built for the capstone 
 ## Features
 - Secure user registration and login using hashed passwords
 - Automatic sign-in after registration and persistent sign-in across browser restarts until logout or remember-cookie expiration
+- Account details in Settings and one-time registration per email address
 - Inventory page for each authenticated user
 - Expiry status rules based on the current date:
   - Green: more than 2 days remaining
@@ -71,6 +72,8 @@ The blueprint sets `APP_ENV=production`, generates a strong secret key, and trus
 On the scan page, choose **Open Camera** and allow camera permission in your browser. The browser only provides camera access on HTTPS (or localhost during development). On a phone the app requests the rear-facing camera when available. If camera access is blocked or unavailable, use **Or upload an image** instead.
 
 **Free prototype limitations:** the free web service can sleep when idle, and its filesystem is ephemeral. This setup uses SQLite, so user accounts and inventory can be lost when the service restarts or redeploys. Use a persistent database and storage plan before relying on saved data. Do not upload sensitive or important data to the prototype.
+
+For hosted use, set `DATABASE_URL` to a persistent database supplied by your hosting provider. Without persistent database storage, a host restart or redeploy can remove saved accounts, and users may then need to register again.
 
 ## Demo Data
 The repository includes demo inventory entries in the data folder and is clearly marked as sample data for testing only.

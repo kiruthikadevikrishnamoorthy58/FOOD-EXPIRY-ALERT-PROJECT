@@ -23,6 +23,9 @@ def load_user(user_id):
 
 @auth_bp.route('/signup', methods=['GET', 'POST'])
 def signup():
+    if current_user.is_authenticated:
+        return redirect(url_for('main.dashboard'))
+
     form = SignupForm()
     if form.validate_on_submit():
         email = normalize_email(form.email.data)
@@ -43,6 +46,9 @@ def signup():
 
 @auth_bp.route('/login', methods=['GET', 'POST'])
 def login():
+    if current_user.is_authenticated:
+        return redirect(url_for('main.dashboard'))
+
     form = LoginForm()
     if form.validate_on_submit():
         user = User.query.filter_by(email=normalize_email(form.email.data)).first()

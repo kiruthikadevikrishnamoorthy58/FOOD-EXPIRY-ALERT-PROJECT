@@ -1,23 +1,62 @@
 {% extends 'base.html' %}
 {% block title %}Settings{% endblock %}
 {% block content %}
-<div class="card form-card">
-    <h2>Alert settings</h2>
-    <form method="post">
-        {{ form.hidden_tag() }}
-        <div class="field">
-            {{ form.sound_choice.label }}
-            {{ form.sound_choice }}
-        </div>
-        <div class="field">
-            {{ form.volume.label }}
-            {{ form.volume }}
-        </div>
-        <div class="field checkbox-row">
-            {{ form.enabled }}
-            {{ form.enabled.label }}
-        </div>
-        <button class="btn btn-primary" type="submit">Save settings</button>
-    </form>
+<div class="settings-page">
+    <div class="settings-heading">
+        <p class="eyebrow eyebrow-soft">Your kitchen, your way</p>
+        <h1>Settings <span aria-hidden="true">⚙️</span></h1>
+        <p>Manage your account details and choose how freshness alerts work for you.</p>
+    </div>
+    <div class="settings-grid">
+        <section class="account-card">
+            <div class="account-card-heading">
+                <span class="account-avatar" aria-hidden="true">👩‍🍳</span>
+                <div>
+                    <p class="account-label">Your account</p>
+                    <h2>{{ current_user.name }}</h2>
+                </div>
+            </div>
+            <dl class="account-details">
+                <div>
+                    <dt>Full name</dt>
+                    <dd>{{ current_user.name }}</dd>
+                </div>
+                <div>
+                    <dt>Email address</dt>
+                    <dd>{{ current_user.email }}</dd>
+                </div>
+                <div>
+                    <dt>Member since</dt>
+                    <dd>{{ current_user.created_at.strftime('%B %Y') }}</dd>
+                </div>
+            </dl>
+            <p class="account-note"><span aria-hidden="true">🔒</span> Your password stays private and is never displayed here.</p>
+        </section>
+        <section class="card alert-settings-card">
+            <div class="settings-card-heading">
+                <span aria-hidden="true">🔔</span>
+                <div>
+                    <p class="account-label">Make it yours</p>
+                    <h2>Alert settings</h2>
+                </div>
+            </div>
+            <form method="post">
+                {{ form.hidden_tag() }}
+                <div class="field">
+                    {{ form.sound_choice.label }}
+                    {{ form.sound_choice }}
+                </div>
+                <div class="field">
+                    {{ form.volume.label }}
+                    {{ form.volume }}
+                </div>
+                <div class="field checkbox-row">
+                    {{ form.enabled }}
+                    {{ form.enabled.label }}
+                </div>
+                <button class="btn btn-primary" type="submit">Save settings <span aria-hidden="true">→</span></button>
+            </form>
+        </section>
+    </div>
 </div>
 {% endblock %}

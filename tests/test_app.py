@@ -7,10 +7,10 @@ from food_expiry_app.models import Product, User
 from food_expiry_app.utils import get_expiry_status
 
 
-def build_app():
+def build_app(database_uri='sqlite://'):
     app = create_app({
         'TESTING': True,
-        'SQLALCHEMY_DATABASE_URI': 'sqlite://',
+        'SQLALCHEMY_DATABASE_URI': database_uri,
         'WTF_CSRF_ENABLED': False,
     })
     with app.app_context():
@@ -27,6 +27,8 @@ def test_signup_and_login_work():
     assert resp.location.endswith('/dashboard')
     assert client.get('/dashboard').status_code == 200
     assert client.get_cookie('remember_token') is not None
+    assert client.get('/signup').location.endswith('/dashboard')
+    assert client.get('/login').location.endswith('/dashboard')
 
     resumed_client = app.test_client()
     resumed_client.set_cookie('remember_token', client.get_cookie('remember_token').value)
@@ -34,10 +36,55 @@ def test_signup_and_login_work():
 
     client.get('/logout', follow_redirects=False)
     assert client.get_cookie('remember_token') is None
+    duplicate = client.post('/signup', data={
+        'name': 'Alice Again',
+        'email': 'alice@example.com',
+        'password': 'different-password',
+    }, follow_redirects=False)
+    assert duplicate.status_code == 302
+    assert duplicate.location.endswith('/login')
     resp = client.post('/login', data={'email': 'alice@example.com', 'password': 'secret123'}, follow_redirects=False)
     assert resp.status_code == 302
     assert resp.location.endswith('/dashboard')
     assert client.get_cookie('remember_token') is not None
+
+
+def test_signup_account_survives_app_restart(tmp_path):
+    database_uri = f"sqlite:///{str(tmp_path / 'accounts.db').replace('\\', '/')}"
+    app = build_app(database_uri)
+    client = app.test_client()
+
+    response = client.post('/signup', data={
+        'name': 'Persistent Alice',
+        'email': 'persistent@example.com',
+        'password': 'secret123',
+    })
+    assert response.status_code == 302
+
+    restarted_app = build_app(database_uri)
+    login_response = restarted_app.test_client().post('/login', data={
+        'email': 'persistent@example.com',
+        'password': 'secret123',
+    })
+    assert login_response.status_code == 302
+    assert login_response.location.endswith('/dashboard')
+
+
+def test_settings_shows_signup_account_details():
+    app = build_app()
+    client = app.test_client()
+    client.post('/signup', data={
+        'name': 'Settings Alice',
+        'email': 'settings@example.com',
+        'password': 'secret123',
+    })
+
+    response = client.get('/settings')
+    assert response.status_code == 200
+    assert b'Settings Alice' in response.data
+    assert b'settings@example.com' in response.data
+    assert b'Member since' in response.data
+    assert b'password stays private' in response.data
 
 
 def test_inventory_shows_user_products():
