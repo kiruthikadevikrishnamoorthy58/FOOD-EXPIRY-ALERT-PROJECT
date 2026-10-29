@@ -1,0 +1,38 @@
+{% extends 'base.html' %}
+{% block title %}Dashboard{% endblock %}
+{% block content %}
+<div class="dashboard">
+    <div class="section-header">
+        <h2>Dashboard</h2>
+        <a class="btn btn-primary" href="{{ url_for('main.scan_product') }}">Scan Food Product</a>
+    </div>
+    <div class="stats-grid">
+        <div class="stat-card green">
+            <span>Total products</span>
+            <strong>{{ totals.total }}</strong>
+        </div>
+        <div class="stat-card green">
+            <span>Within date</span>
+            <strong>{{ totals.fresh }}</strong>
+        </div>
+        <div class="stat-card yellow">
+            <span>Expiring soon</span>
+            <strong>{{ totals.soon }}</strong>
+        </div>
+        <div class="stat-card red">
+            <span>Expired</span>
+            <strong>{{ totals.expired }}</strong>
+        </div>
+    </div>
+    <div class="card">
+        <h3>Recently scanned products</h3>
+        <ul class="list">
+            {% for product in recent %}
+                <li>{{ product.product_name }} — {{ product.expiry_date }}</li>
+            {% else %}
+                <li>No products yet.</li>
+            {% endfor %}
+        </ul>
+    </div>
+</div>
+{% endblock %}

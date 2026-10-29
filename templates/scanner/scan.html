@@ -1,0 +1,26 @@
+{% extends 'base.html' %}
+{% block title %}Scan product{% endblock %}
+{% block content %}
+<div class="card form-card">
+    <h2>Scan a food product</h2>
+    <form method="post" enctype="multipart/form-data">
+        <div class="field">
+            <label for="product_name">Product name</label>
+            <input type="text" name="product_name" id="product_name">
+        </div>
+        <div class="field">
+            <label for="category">Category</label>
+            <input type="text" name="category" id="category" value="General">
+        </div>
+        <div class="field">
+            <label for="image">Upload image</label>
+            <input type="file" name="image" id="image" accept="image/png,image/jpeg,image/jpg">
+        </div>
+        <div class="field">
+            <label for="manual_date">Manual date</label>
+            <input type="date" name="manual_date" id="manual_date">
+        </div>
+        <button class="btn btn-primary" type="submit">Process scan</button>
+    </form>
+</div>
+{% endblock %}

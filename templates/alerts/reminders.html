@@ -1,0 +1,15 @@
+{% extends 'base.html' %}
+{% block title %}Reminders{% endblock %}
+{% block content %}
+<div class="card">
+    <h2>Reminder history</h2>
+    {% for item in items %}
+        <div class="reminder-item">
+            <strong>{{ item.product.product_name }}</strong>
+            <span>{{ item.status.label }}: {{ item.status.text }}</span>
+        </div>
+    {% else %}
+        <p>No active reminders.</p>
+    {% endfor %}
+</div>
+{% endblock %}

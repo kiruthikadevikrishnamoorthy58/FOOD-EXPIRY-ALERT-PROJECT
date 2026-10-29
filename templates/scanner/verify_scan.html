@@ -1,0 +1,39 @@
+{% extends 'base.html' %}
+{% block title %}Verify expiry date{% endblock %}
+{% block content %}
+<div class="card form-card">
+    <h2>Please verify the expiry date detected by the system. Is this date correct?</h2>
+    <form method="post">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <div class="field">
+            <label for="product_name">Product name</label>
+            <input type="text" id="product_name" name="product_name" value="{{ pending.product_name or 'Unknown product' }}">
+        </div>
+        <div class="field">
+            <label for="expiry_date">Expiry date</label>
+            <input type="date" id="expiry_date" name="expiry_date" value="{{ pending.expiry_date }}">
+        </div>
+        <div class="field">
+            <label for="category">Category</label>
+            <input type="text" id="category" name="category" value="{{ pending.category or 'General' }}">
+        </div>
+        <div class="field">
+            <label for="notes">Notes</label>
+            <textarea id="notes" name="notes">{{ pending.notes or '' }}</textarea>
+        </div>
+        <div class="field">
+            <label for="storage_location">Storage location</label>
+            <input type="text" id="storage_location" name="storage_location" value="{{ pending.storage_location or '' }}">
+        </div>
+        <div class="field">
+            <label for="ocr_text">Detected text</label>
+            <textarea id="ocr_text" name="ocr_text">{{ pending.ocr_text or '' }}</textarea>
+        </div>
+        <div class="button-row">
+            <button class="btn btn-primary" type="submit" name="action" value="save">OK — Correct</button>
+            <button class="btn btn-secondary" type="submit" name="action" value="edit">Edit Date</button>
+            <button class="btn btn-danger" type="submit" name="action" value="rescan">Re-scan</button>
+        </div>
+    </form>
+</div>
+{% endblock %}

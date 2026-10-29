@@ -53,3 +53,18 @@ dkms.conf
 
 # debug information files
 *.dwo
+
+# Local configuration, databases, uploads, certificates, and Python artifacts
+.env
+.venv/
+venv/
+__pycache__/
+.pytest_cache/
+*.py[cod]
+instance/
+data/uploads/
+*.db
+*.sqlite
+*.sqlite3
+*.pem
+*.key

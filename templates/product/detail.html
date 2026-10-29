@@ -1,0 +1,31 @@
+{% extends 'base.html' %}
+{% block title %}Product details{% endblock %}
+{% block content %}
+<div class="card form-card">
+    <h2>{{ product.product_name }}</h2>
+    <form method="post">
+        {{ form.hidden_tag() }}
+        <div class="field">
+            {{ form.product_name.label }}
+            {{ form.product_name }}
+        </div>
+        <div class="field">
+            {{ form.category.label }}
+            {{ form.category }}
+        </div>
+        <div class="field">
+            {{ form.expiry_date.label }}
+            {{ form.expiry_date }}
+        </div>
+        <div class="field">
+            {{ form.notes.label }}
+            {{ form.notes }}
+        </div>
+        <div class="field">
+            {{ form.storage_location.label }}
+            {{ form.storage_location }}
+        </div>
+        <button class="btn btn-primary" type="submit">Save changes</button>
+    </form>
+</div>
+{% endblock %}

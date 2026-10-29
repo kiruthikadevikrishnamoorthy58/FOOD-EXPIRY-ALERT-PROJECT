@@ -1,0 +1,43 @@
+{% extends 'base.html' %}
+{% block title %}Inventory{% endblock %}
+{% block content %}
+<div class="inventory-page">
+    <div class="section-header">
+        <h2>Centralized Food Inventory</h2>
+    </div>
+    <form class="toolbar" method="get">
+        <input type="text" name="search" value="{{ search }}" placeholder="Search by product name">
+        <select name="filter">
+            <option value="all" {% if filter_status == 'all' %}selected{% endif %}>All</option>
+            <option value="within_date" {% if filter_status == 'within_date' %}selected{% endif %}>Fresh/Within Date</option>
+            <option value="expiring_soon" {% if filter_status == 'expiring_soon' %}selected{% endif %}>Expiring Soon</option>
+            <option value="expired" {% if filter_status == 'expired' %}selected{% endif %}>Expired</option>
+        </select>
+        <select name="sort">
+            <option value="expiry_date" {% if sort_by == 'expiry_date' %}selected{% endif %}>Expiry Date</option>
+            <option value="product_name" {% if sort_by == 'product_name' %}selected{% endif %}>Product Name</option>
+            <option value="date_added" {% if sort_by == 'date_added' %}selected{% endif %}>Date Added</option>
+        </select>
+        <button class="btn btn-primary" type="submit">Apply</button>
+    </form>
+    <div class="inventory-grid">
+        {% for product in products %}
+        {% set diff = (product.expiry_date - today).days %}
+        <div class="card product-card {% if product.expiry_date < today %}red{% elif diff <= 2 %}yellow{% else %}green{% endif %}">
+            <h3>{{ product.product_name }}</h3>
+            <p>Expiry: {{ product.expiry_date }}</p>
+            <p>Category: {{ product.category }}</p>
+            <div class="button-row">
+                <a class="btn btn-secondary" href="{{ url_for('main.product_detail', product_id=product.id) }}">View</a>
+                <form action="{{ url_for('main.delete_product', product_id=product.id) }}" method="post">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <button class="btn btn-danger" type="submit">Delete</button>
+                </form>
+            </div>
+        </div>
+        {% else %}
+        <div class="card"><p>No products found.</p></div>
+        {% endfor %}
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,26 @@
+{
+  "demo_note": "Sample data only for testing. Do not use in production.",
+  "products": [
+    {
+      "product_name": "Milk",
+      "category": "Dairy",
+      "expiry_date": "2026-10-30",
+      "notes": "Demo item",
+      "storage_location": "Fridge"
+    },
+    {
+      "product_name": "Yogurt",
+      "category": "Dairy",
+      "expiry_date": "2026-11-02",
+      "notes": "Demo item",
+      "storage_location": "Fridge"
+    },
+    {
+      "product_name": "Rice",
+      "category": "Dry Goods",
+      "expiry_date": "2027-01-15",
+      "notes": "Demo item",
+      "storage_location": "Pantry"
+    }
+  ]
+}

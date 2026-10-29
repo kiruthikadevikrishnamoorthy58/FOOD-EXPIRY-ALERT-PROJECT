@@ -1,0 +1,15 @@
+services:
+  - type: web
+    name: smart-food-expiry-alert
+    runtime: docker
+    plan: free
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    healthCheckPath: /health
+    envVars:
+      - key: APP_ENV
+        value: production
+      - key: TRUSTED_PROXY_COUNT
+        value: "1"
+      - key: SECRET_KEY
+        generateValue: true
