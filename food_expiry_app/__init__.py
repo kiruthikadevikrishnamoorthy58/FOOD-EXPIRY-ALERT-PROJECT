@@ -2,7 +2,7 @@ import os
 import secrets
 
 from dotenv import load_dotenv
-from flask import Flask, redirect, request
+from flask import Flask
 from flask_login import LoginManager
 from flask_sqlalchemy import SQLAlchemy
 from flask_wtf.csrf import CSRFProtect
@@ -60,11 +60,6 @@ def create_app(test_config=None):
                 x_proto=proxy_count,
                 x_host=proxy_count,
             )
-
-        @app.before_request
-        def enforce_https():
-            if not request.is_secure:
-                return redirect(request.url.replace('http://', 'https://', 1), code=301)
 
         @app.after_request
         def add_hsts_header(response):

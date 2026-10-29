@@ -64,7 +64,7 @@ def test_production_requires_secret_key(monkeypatch):
         create_app()
 
 
-def test_production_redirects_http_and_sets_hsts(monkeypatch):
+def test_production_enables_secure_cookies_and_hsts(monkeypatch):
     monkeypatch.setenv('APP_ENV', 'production')
     monkeypatch.setenv('SECRET_KEY', 'a-long-random-production-secret-for-tests')
     monkeypatch.setenv('TRUSTED_PROXY_COUNT', '1')
@@ -75,14 +75,8 @@ def test_production_redirects_http_and_sets_hsts(monkeypatch):
     })
     client = app.test_client()
 
-    http_response = client.get('/health', base_url='http://localhost')
-    assert http_response.status_code == 301
-    assert http_response.headers['Location'].startswith('https://')
-
-    https_response = client.get(
-        '/health',
-        base_url='http://localhost',
-        headers={'X-Forwarded-Proto': 'https'},
-    )
-    assert https_response.status_code == 200
-    assert https_response.headers['Strict-Transport-Security'] == 'max-age=31536000'
+    assert app.config['SESSION_COOKIE_SECURE'] is True
+    assert app.config['REMEMBER_COOKIE_SECURE'] is True
+    response = client.get('/health', base_url='https://localhost')
+    assert response.status_code == 200
+    assert response.headers['Strict-Transport-Security'] == 'max-age=31536000'
