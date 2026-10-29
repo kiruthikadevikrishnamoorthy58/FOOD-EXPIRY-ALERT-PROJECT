@@ -3,7 +3,9 @@
 {% block content %}
 <div class="card form-card">
     <h2>Scan a food product</h2>
+    <p class="scan-help">Use your device camera to capture the label, or choose an existing image. Make sure the expiry date text is clear.</p>
     <form method="post" enctype="multipart/form-data">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <div class="field">
             <label for="product_name">Product name</label>
             <input type="text" name="product_name" id="product_name">
@@ -12,15 +14,29 @@
             <label for="category">Category</label>
             <input type="text" name="category" id="category" value="General">
         </div>
+        <section class="camera-panel" aria-label="Camera scanner">
+            <div class="camera-actions">
+                <button class="btn btn-primary" type="button" id="open-camera">Open Camera</button>
+                <button class="btn btn-secondary" type="button" id="capture-photo" hidden>Capture Photo</button>
+                <button class="btn btn-secondary" type="button" id="retake-photo" hidden>Retake</button>
+            </div>
+            <p id="camera-message" class="camera-message" role="status" aria-live="polite">
+                Camera access requires permission. You can also upload a photo below.
+            </p>
+            <video id="camera-preview" class="camera-preview" autoplay playsinline muted hidden></video>
+            <img id="captured-preview" class="camera-preview" alt="Captured food label preview" hidden>
+            <canvas id="capture-canvas" hidden></canvas>
+        </section>
         <div class="field">
-            <label for="image">Upload image</label>
-            <input type="file" name="image" id="image" accept="image/png,image/jpeg,image/jpg">
+            <label for="image">Or upload an image</label>
+            <input type="file" name="image" id="image" accept="image/png,image/jpeg" capture="environment">
         </div>
         <div class="field">
             <label for="manual_date">Manual date</label>
             <input type="date" name="manual_date" id="manual_date">
         </div>
-        <button class="btn btn-primary" type="submit">Process scan</button>
+        <button class="btn btn-primary" type="submit" id="process-scan">Process scan</button>
     </form>
 </div>
+<script src="{{ url_for('static', filename='js/camera.js') }}" defer></script>
 {% endblock %}
