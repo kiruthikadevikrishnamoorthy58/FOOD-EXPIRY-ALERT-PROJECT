@@ -24,11 +24,20 @@ def test_signup_and_login_work():
 
     resp = client.post('/signup', data={'name': 'Alice', 'email': 'alice@example.com', 'password': 'secret123'}, follow_redirects=False)
     assert resp.status_code == 302
-    assert resp.location.endswith('/login')
+    assert resp.location.endswith('/dashboard')
+    assert client.get('/dashboard').status_code == 200
+    assert client.get_cookie('remember_token') is not None
 
+    resumed_client = app.test_client()
+    resumed_client.set_cookie('remember_token', client.get_cookie('remember_token').value)
+    assert resumed_client.get('/dashboard').status_code == 200
+
+    client.get('/logout', follow_redirects=False)
+    assert client.get_cookie('remember_token') is None
     resp = client.post('/login', data={'email': 'alice@example.com', 'password': 'secret123'}, follow_redirects=False)
     assert resp.status_code == 302
     assert resp.location.endswith('/dashboard')
+    assert client.get_cookie('remember_token') is not None
 
 
 def test_inventory_shows_user_products():

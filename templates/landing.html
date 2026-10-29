@@ -3,12 +3,39 @@
 {% block content %}
 <section class="hero">
     <div class="hero-copy">
-        <h1>Smart Food Expiry Detection</h1>
-        <p>Scan food labels, verify expiry dates, and manage inventory before products spoil.</p>
+        <p class="eyebrow"><span aria-hidden="true">✦</span> Your kitchen's little helper</p>
+        <h1>Love your food.<br><span>Waste less.</span></h1>
+        <p>Keep every fresh find in view. Scan a label, track its best-before date, and enjoy food at its best.</p>
         <div class="cta-row">
-            <a class="btn btn-primary" href="{{ url_for('auth.signup') }}">Create Account</a>
-            <a class="btn btn-secondary" href="{{ url_for('auth.login') }}">Login</a>
+            <a class="btn btn-primary" href="{{ url_for('auth.signup') }}">Start your fresh journey <span aria-hidden="true">→</span></a>
+            <a class="btn btn-secondary" href="{{ url_for('auth.login') }}">I have an account</a>
         </div>
+    </div>
+    <div class="hero-art" aria-hidden="true">
+        <div class="hero-fruit">🍊</div>
+        <div class="floating-note">Freshness check <span>✓ You're on top of it</span></div>
+    </div>
+</section>
+<section class="intro-section">
+    <p class="eyebrow eyebrow-soft">A fresher routine starts here</p>
+    <h2>Good food deserves a plan.</h2>
+    <p>Take the guesswork out of your fridge with simple tools that make every ingredient count.</p>
+    <div class="feature-grid">
+        <article class="feature-card">
+            <span class="feature-icon" aria-hidden="true">📸</span>
+            <h3>Scan in a snap</h3>
+            <p>Capture a food label and spot the expiry date without digging through packages.</p>
+        </article>
+        <article class="feature-card">
+            <span class="feature-icon" aria-hidden="true">🥑</span>
+            <h3>Know what's fresh</h3>
+            <p>See your food in one colorful inventory, with clear freshness status at a glance.</p>
+        </article>
+        <article class="feature-card">
+            <span class="feature-icon" aria-hidden="true">⏰</span>
+            <h3>Catch it in time</h3>
+            <p>Keep soon-to-expire items on your radar and plan a delicious next meal.</p>
+        </article>
     </div>
 </section>
 {% endblock %}

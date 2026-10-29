@@ -3,34 +3,37 @@
 {% block content %}
 <div class="dashboard">
     <div class="section-header">
-        <h2>Dashboard</h2>
-        <a class="btn btn-primary" href="{{ url_for('main.scan_product') }}">Scan Food Product</a>
+        <div>
+            <p class="eyebrow eyebrow-soft">Your fresh space</p>
+            <h2>Good day, {{ current_user.name }} 👋</h2>
+        </div>
+        <a class="btn btn-primary" href="{{ url_for('main.scan_product') }}"><span aria-hidden="true">📸</span> Scan something fresh</a>
     </div>
     <div class="stats-grid">
         <div class="stat-card green">
-            <span>Total products</span>
+            <span><span class="stat-icon" aria-hidden="true">🧺</span> Total products</span>
             <strong>{{ totals.total }}</strong>
         </div>
         <div class="stat-card green">
-            <span>Within date</span>
+            <span><span class="stat-icon" aria-hidden="true">🥬</span> Within date</span>
             <strong>{{ totals.fresh }}</strong>
         </div>
         <div class="stat-card yellow">
-            <span>Expiring soon</span>
+            <span><span class="stat-icon" aria-hidden="true">⏳</span> Expiring soon</span>
             <strong>{{ totals.soon }}</strong>
         </div>
         <div class="stat-card red">
-            <span>Expired</span>
+            <span><span class="stat-icon" aria-hidden="true">🍅</span> Expired</span>
             <strong>{{ totals.expired }}</strong>
         </div>
     </div>
     <div class="card">
-        <h3>Recently scanned products</h3>
+        <h3>Recently added to your kitchen <span aria-hidden="true">✨</span></h3>
         <ul class="list">
             {% for product in recent %}
-                <li>{{ product.product_name }} — {{ product.expiry_date }}</li>
+                <li><span aria-hidden="true">🥕</span> &nbsp;{{ product.product_name }} <span class="list-date">— {{ product.expiry_date }}</span></li>
             {% else %}
-                <li>No products yet.</li>
+                <li>Your inventory is ready for its first fresh find. <a href="{{ url_for('main.scan_product') }}">Scan a product →</a></li>
             {% endfor %}
         </ul>
     </div>

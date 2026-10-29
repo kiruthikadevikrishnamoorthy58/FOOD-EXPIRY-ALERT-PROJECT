@@ -34,8 +34,10 @@ def signup():
         user.set_password(form.password.data)
         db.session.add(user)
         db.session.commit()
+        login_user(user, remember=True)
+        session['pending_scan'] = None
         flash('Account created successfully.', 'success')
-        return redirect(url_for('auth.login'))
+        return redirect(url_for('main.dashboard'))
     return render_template('auth/signup.html', form=form)
 
 
@@ -45,7 +47,7 @@ def login():
     if form.validate_on_submit():
         user = User.query.filter_by(email=normalize_email(form.email.data)).first()
         if user and user.check_password(form.password.data):
-            login_user(user)
+            login_user(user, remember=True)
             session['pending_scan'] = None
             return redirect(url_for('main.dashboard'))
         flash('Invalid email or password.', 'danger')
@@ -55,8 +57,8 @@ def login():
 @auth_bp.route('/logout')
 @login_required
 def logout():
-    logout_user()
     session.clear()
+    logout_user()
     flash('You have been logged out.', 'info')
     return redirect(url_for('main.landing'))
 
