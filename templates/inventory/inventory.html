@@ -2,41 +2,73 @@
 {% block title %}Inventory{% endblock %}
 {% block content %}
 <div class="inventory-page">
-    <div class="section-header">
-        <h2>Centralized Food Inventory</h2>
-    </div>
+    <header class="page-intro inventory-intro">
+        <p class="eyebrow eyebrow-soft">Everything in one fresh place</p>
+        <h1>Your <span>food inventory.</span></h1>
+        <p>Search your kitchen, check what is fresh, and plan what to enjoy next.</p>
+        <a class="btn btn-primary" href="{{ url_for('main.scan_product') }}"><span aria-hidden="true">📷</span> Add food <span aria-hidden="true">→</span></a>
+    </header>
+    <div class="inventory-toolbar-card">
     <form class="toolbar" method="get">
-        <input type="text" name="search" value="{{ search }}" placeholder="Search by product name">
-        <select name="filter">
-            <option value="all" {% if filter_status == 'all' %}selected{% endif %}>All</option>
-            <option value="within_date" {% if filter_status == 'within_date' %}selected{% endif %}>Fresh/Within Date</option>
-            <option value="expiring_soon" {% if filter_status == 'expiring_soon' %}selected{% endif %}>Expiring Soon</option>
-            <option value="expired" {% if filter_status == 'expired' %}selected{% endif %}>Expired</option>
-        </select>
-        <select name="sort">
-            <option value="expiry_date" {% if sort_by == 'expiry_date' %}selected{% endif %}>Expiry Date</option>
-            <option value="product_name" {% if sort_by == 'product_name' %}selected{% endif %}>Product Name</option>
-            <option value="date_added" {% if sort_by == 'date_added' %}selected{% endif %}>Date Added</option>
-        </select>
-        <button class="btn btn-primary" type="submit">Apply</button>
+        <label class="search-field">
+            <span aria-hidden="true">⌕</span>
+            <span class="visually-hidden">Search inventory</span>
+            <input type="search" name="search" value="{{ search }}" placeholder="Search your food..." aria-label="Search by product name">
+        </label>
+        <label class="select-field"><span class="visually-hidden">Filter by freshness</span>
+            <select name="filter" aria-label="Filter by freshness">
+                <option value="all" {% if filter_status == 'all' %}selected{% endif %}>All freshness</option>
+                <option value="within_date" {% if filter_status == 'within_date' %}selected{% endif %}>Fresh</option>
+                <option value="expiring_soon" {% if filter_status == 'expiring_soon' %}selected{% endif %}>Expiring soon</option>
+                <option value="expired" {% if filter_status == 'expired' %}selected{% endif %}>Expired</option>
+            </select>
+        </label>
+        <label class="select-field"><span class="visually-hidden">Sort products</span>
+            <select name="sort" aria-label="Sort products">
+                <option value="expiry_date" {% if sort_by == 'expiry_date' %}selected{% endif %}>Soonest expiry</option>
+                <option value="product_name" {% if sort_by == 'product_name' %}selected{% endif %}>Product name</option>
+                <option value="date_added" {% if sort_by == 'date_added' %}selected{% endif %}>Recently added</option>
+            </select>
+        </label>
+        <button class="btn btn-primary" type="submit">Update view <span aria-hidden="true">→</span></button>
     </form>
-    <div class="inventory-grid">
+    </div>
+    <div class="inventory-grid inventory-products">
         {% for product in products %}
         {% set diff = (product.expiry_date - today).days %}
-        <div class="card product-card {% if product.expiry_date < today %}red{% elif diff <= 2 %}yellow{% else %}green{% endif %}">
-            <h3>{{ product.product_name }}</h3>
-            <p>Expiry: {{ product.expiry_date }}</p>
-            <p>Category: {{ product.category }}</p>
-            <div class="button-row">
-                <a class="btn btn-secondary" href="{{ url_for('main.product_detail', product_id=product.id) }}">View</a>
-                <form action="{{ url_for('main.delete_product', product_id=product.id) }}" method="post">
+        <article class="card product-card {% if product.expiry_date < today %}red{% elif diff <= 2 %}yellow{% else %}green{% endif %}">
+            <div class="product-card-top">
+                <span class="product-emoji" aria-hidden="true">{% if 'dairy' in product.category|lower %}🥛{% elif 'fruit' in product.category|lower %}🍎{% elif 'vegetable' in product.category|lower %}🥦{% else %}🥫{% endif %}</span>
+                {% if product.expiry_date < today %}
+                <span class="status-badge red"><span class="status-dot red"></span> Expired</span>
+                {% elif diff <= 2 %}
+                <span class="status-badge yellow"><span class="status-dot yellow"></span> Expiring soon</span>
+                {% else %}
+                <span class="status-badge green"><span class="status-dot green"></span> Fresh</span>
+                {% endif %}
+            </div>
+            <h2>{{ product.product_name }}</h2>
+            <p class="product-category">{{ product.category }}</p>
+            <div class="product-meta">
+                <div><span>Best before</span><strong>{{ product.expiry_date.strftime('%b %d, %Y') }}</strong></div>
+                <div><span>Freshness</span><strong>{% if diff < 0 %}{{ diff|abs }} day(s) overdue{% elif diff == 0 %}Expires today{% elif diff == 1 %}1 day remaining{% else %}{{ diff }} days remaining{% endif %}</strong></div>
+                <div><span>Added</span><strong>{{ product.date_added.strftime('%b %d, %Y') if product.date_added else '—' }}</strong></div>
+            </div>
+            <div class="product-actions">
+                <a class="btn btn-product-edit" href="{{ url_for('main.product_detail', product_id=product.id) }}">Edit details <span aria-hidden="true">↗</span></a>
+                <form action="{{ url_for('main.delete_product', product_id=product.id) }}" method="post" data-confirm="Delete {{ product.product_name }} from your inventory?">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                    <button class="btn btn-danger" type="submit">Delete</button>
+                    <button class="btn btn-delete" type="submit" aria-label="Delete {{ product.product_name }}">Delete</button>
                 </form>
             </div>
-        </div>
+        </article>
         {% else %}
-        <div class="card"><p>No products found.</p></div>
+        <div class="empty-state card">
+            <span class="empty-illustration" aria-hidden="true">{% if has_products %}🔎{% else %}🧺{% endif %}</span>
+            <h2>{% if has_products %}No matches this time.{% else %}Your kitchen starts here.{% endif %}</h2>
+            <p>{% if has_products %}Try another search or freshness filter.{% else %}Add your first product and keep its best-before date close at hand.{% endif %}</p>
+            {% if not has_products %}<a class="btn btn-primary" href="{{ url_for('main.scan_product') }}">Scan your first product <span aria-hidden="true">→</span></a>{% endif %}
+        </div>
         {% endfor %}
     </div>
 </div>

@@ -1,7 +1,9 @@
 from datetime import date, timedelta
+from io import BytesIO
 import sqlite3
 
 import pytest
+from PIL import Image
 
 from food_expiry_app import create_app, db
 from food_expiry_app.models import Product, User
@@ -166,6 +168,239 @@ def test_inventory_shows_user_products():
         resp = client.get('/inventory')
         assert resp.status_code == 200
         assert b'Milk' in resp.data
+
+
+def test_all_authenticated_pages_render_with_dashboard_data():
+    app = build_app()
+    client = app.test_client()
+    client.post('/signup', data={
+        'name': 'Page Tester',
+        'email': 'pages@example.com',
+        'password': 'secret123',
+    })
+    with app.app_context():
+        user = User.query.filter_by(email='pages@example.com').one()
+        product = Product(
+            user_id=user.id,
+            product_name='Fresh Apples',
+            category='Fruit',
+            expiry_date=date.today() + timedelta(days=1),
+        )
+        db.session.add(product)
+        db.session.commit()
+        product_id = product.id
+
+    dashboard = client.get('/dashboard')
+    assert dashboard.status_code == 200
+    assert b'Expiring soon' in dashboard.data
+    assert b'Fresh Apples' in dashboard.data
+    assert b'Freshness mix' in dashboard.data
+    for path in (
+        '/scan',
+        '/inventory',
+        '/reminders',
+        '/settings',
+        '/profile',
+        f'/product/{product_id}',
+    ):
+        response = client.get(path)
+        assert response.status_code == 200, path
+
+
+def test_manual_scan_requires_review_before_saving_and_supports_date_edit():
+    app = build_app()
+    client = app.test_client()
+    client.post('/signup', data={
+        'name': 'Scanner Alice',
+        'email': 'scanner@example.com',
+        'password': 'secret123',
+    })
+
+    response = client.post('/scan', data={
+        'product_name': 'Yogurt',
+        'category': 'Dairy',
+        'manual_date': '2030-05-21',
+    })
+    assert response.status_code == 302
+    assert response.location.endswith('/verify-scan')
+    verify_page = client.get('/verify-scan')
+    assert verify_page.status_code == 200
+    assert b'OK \xe2\x80\x94 Correct' in verify_page.data
+
+    edit_page = client.post('/verify-scan', data={
+        'action': 'edit',
+        'expiry_date': '2030-05-21',
+    })
+    assert edit_page.status_code == 200
+    assert b'Review updated date' in edit_page.data
+    updated_review = client.post('/verify-scan', data={
+        'action': 'update-date',
+        'expiry_date': '2030-05-25',
+    })
+    assert updated_review.status_code == 200
+    assert b'2030-05-25' in updated_review.data
+
+    with app.app_context():
+        assert Product.query.filter_by(product_name='Yogurt').count() == 0
+
+    saved = client.post('/verify-scan', data={
+        'action': 'save',
+        'product_name': 'Yogurt',
+        'expiry_date': '2030-05-25',
+        'category': 'Dairy',
+    })
+    assert saved.status_code == 302
+    with app.app_context():
+        product = Product.query.filter_by(product_name='Yogurt').one()
+        assert product.expiry_date == date(2030, 5, 25)
+        assert product.confirmation_status == 'confirmed'
+
+
+def test_image_ocr_result_is_reviewed_before_it_is_saved(monkeypatch, tmp_path):
+    app = build_app()
+    app.config['UPLOAD_FOLDER'] = str(tmp_path / 'uploads')
+    client = app.test_client()
+    client.post('/signup', data={
+        'name': 'OCR Alice',
+        'email': 'ocr@example.com',
+        'password': 'secret123',
+    })
+    monkeypatch.setattr(
+        'food_expiry_app.routes.extract_ocr_text_from_image',
+        lambda _path: 'EXP 2030-06-11',
+    )
+    image = BytesIO()
+    Image.new('RGB', (4, 4), color='white').save(image, format='PNG')
+    image.seek(0)
+
+    scan = client.post('/scan', data={
+        'product_name': 'Cereal',
+        'category': 'Pantry',
+        'image': (image, 'label.png'),
+    })
+    assert scan.status_code == 302
+    verify_page = client.get('/verify-scan')
+    assert verify_page.status_code == 200
+    assert b'2030-06-11' in verify_page.data
+    assert b'Please compare it with the package.' in verify_page.data
+    with app.app_context():
+        assert Product.query.filter_by(product_name='Cereal').count() == 0
+
+    save = client.post('/verify-scan', data={
+        'action': 'save',
+        'product_name': 'Cereal',
+        'category': 'Pantry',
+        'expiry_date': '2030-06-11',
+    })
+    assert save.status_code == 302
+    with app.app_context():
+        assert Product.query.filter_by(product_name='Cereal').count() == 1
+
+
+def test_inventory_search_filter_and_sort_use_user_products():
+    app = build_app()
+    with app.app_context():
+        user = User(name='Inventory Alice', email='inventory@example.com')
+        user.set_password('secret123')
+        db.session.add(user)
+        db.session.flush()
+        db.session.add_all([
+            Product(
+                user_id=user.id,
+                product_name='Milk',
+                category='Dairy',
+                expiry_date=date.today() + timedelta(days=1),
+            ),
+            Product(
+                user_id=user.id,
+                product_name='Apple',
+                category='Fruit',
+                expiry_date=date.today() + timedelta(days=8),
+            ),
+            Product(
+                user_id=user.id,
+                product_name='Old Bread',
+                category='Bakery',
+                expiry_date=date.today() - timedelta(days=1),
+            ),
+        ])
+        db.session.commit()
+
+    client = app.test_client()
+    client.post('/login', data={
+        'email': 'inventory@example.com',
+        'password': 'secret123',
+    })
+    response = client.get('/inventory?search=milk&filter=expiring_soon&sort=product_name')
+    assert response.status_code == 200
+    assert b'Milk' in response.data
+    assert b'Expiring soon' in response.data
+    assert b'Apple' not in response.data
+
+    no_match = client.get('/inventory?search=missing')
+    assert no_match.status_code == 200
+    assert b'No matches this time.' in no_match.data
+    assert b'Your kitchen starts here.' not in no_match.data
+
+
+def test_reminders_and_sound_settings_use_saved_preferences():
+    app = build_app()
+    client = app.test_client()
+    client.post('/signup', data={
+        'name': 'Reminder Alice',
+        'email': 'reminder@example.com',
+        'password': 'secret123',
+    })
+
+    response = client.post('/settings', data={
+        'form_name': 'alerts',
+        'sound_choice': 'chime',
+        'volume': '0.75',
+        'enabled': 'y',
+    })
+    assert response.status_code == 302
+    assert response.location.endswith('/settings')
+
+    settings_page = client.get('/settings')
+    assert b'data-test-alert' in settings_page.data
+    assert b'value="0.75"' in settings_page.data
+    reminders = client.get('/reminders')
+    assert reminders.status_code == 200
+    assert b'No upcoming expiries' not in reminders.data
+    assert b'All clear for now.' in reminders.data
+
+
+def test_active_reminder_controls_use_saved_alert_preferences():
+    app = build_app()
+    client = app.test_client()
+    client.post('/signup', data={
+        'name': 'Alert Alice',
+        'email': 'alert@example.com',
+        'password': 'secret123',
+    })
+    with app.app_context():
+        user = User.query.filter_by(email='alert@example.com').one()
+        db.session.add(Product(
+            user_id=user.id,
+            product_name='Fresh yogurt',
+            category='Dairy',
+            expiry_date=date.today() + timedelta(days=1),
+        ))
+        db.session.commit()
+
+    client.post('/settings', data={
+        'form_name': 'alerts',
+        'sound_choice': 'ding',
+        'volume': '0.65',
+        'enabled': 'y',
+    })
+    reminders = client.get('/reminders')
+    assert reminders.status_code == 200
+    assert b'data-alert-sound="ding"' in reminders.data
+    assert b'data-alert-volume="0.65"' in reminders.data
+    assert b'data-alert-start' in reminders.data
+    assert b'data-alert-stop' in reminders.data
+    assert b'Fresh yogurt' in reminders.data
 
 
 def test_expiry_status_follows_two_day_rule():

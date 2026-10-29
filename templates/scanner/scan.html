@@ -1,42 +1,73 @@
 {% extends 'base.html' %}
 {% block title %}Scan product{% endblock %}
 {% block content %}
-<div class="card form-card">
-    <h2>Scan a food product</h2>
-    <p class="scan-help">Use your device camera to capture the label, or choose an existing image. Make sure the expiry date text is clear.</p>
+<div class="scan-page">
+    <header class="page-intro">
+        <p class="eyebrow eyebrow-soft">Your scan station</p>
+        <h1>Let's scan something <span>fresh.</span></h1>
+        <p>Point your camera at the printed date. We'll read it, and you'll confirm it before it is saved.</p>
+    </header>
+    <div class="scan-layout">
+    <section class="card scan-card">
+        <div class="scan-card-heading"><span class="scan-step">01</span><div><h2>Capture a food label</h2><p>Keep the expiry date clear and in focus.</p></div></div>
     <form method="post" enctype="multipart/form-data">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <div class="field">
-            <label for="product_name">Product name</label>
-            <input type="text" name="product_name" id="product_name">
+            <label for="product_name">Product name <span class="optional-label">Optional</span></label>
+            <input type="text" name="product_name" id="product_name" placeholder="e.g. Oat milk">
         </div>
         <div class="field">
             <label for="category">Category</label>
-            <input type="text" name="category" id="category" value="General">
+            <input type="text" name="category" id="category" value="General" placeholder="e.g. Dairy, Produce">
         </div>
         <section class="camera-panel" aria-label="Camera scanner">
+            <div class="camera-frame">
+                <video id="camera-preview" class="camera-preview" autoplay playsinline muted hidden></video>
+                <img id="captured-preview" class="camera-preview" alt="Captured food label preview" hidden>
+                <canvas id="capture-canvas" hidden></canvas>
+                <div class="camera-placeholder" id="camera-placeholder">
+                    <span aria-hidden="true">🥫</span>
+                    <strong>Your label goes here</strong>
+                    <small>Center the printed date inside the frame</small>
+                </div>
+                <span class="scan-corner corner-tl" aria-hidden="true"></span><span class="scan-corner corner-tr" aria-hidden="true"></span>
+                <span class="scan-corner corner-bl" aria-hidden="true"></span><span class="scan-corner corner-br" aria-hidden="true"></span>
+            </div>
             <div class="camera-actions">
-                <button class="btn btn-primary" type="button" id="open-camera">Open Camera</button>
-                <button class="btn btn-secondary" type="button" id="capture-photo" hidden>Capture Photo</button>
-                <button class="btn btn-secondary" type="button" id="retake-photo" hidden>Retake</button>
+                <button class="btn btn-primary" type="button" id="open-camera"><span aria-hidden="true">📷</span> Open Camera</button>
+                <button class="btn btn-capture" type="button" id="capture-photo" hidden><span aria-hidden="true">◉</span> Capture Photo</button>
+                <button class="btn btn-secondary" type="button" id="retake-photo" hidden>↻ Retake photo</button>
             </div>
             <p id="camera-message" class="camera-message" role="status" aria-live="polite">
-                Camera access requires permission. You can also upload a photo below.
+                Camera access needs your permission. You can upload a photo instead.
             </p>
-            <video id="camera-preview" class="camera-preview" autoplay playsinline muted hidden></video>
-            <img id="captured-preview" class="camera-preview" alt="Captured food label preview" hidden>
-            <canvas id="capture-canvas" hidden></canvas>
         </section>
-        <div class="field">
-            <label for="image">Or upload an image</label>
+        <div class="upload-drop">
+            <span class="upload-icon" aria-hidden="true">🖼️</span>
+            <div><label for="image">Choose a photo instead</label><small>JPG or PNG · keep the date readable</small></div>
             <input type="file" name="image" id="image" accept="image/png,image/jpeg" capture="environment">
         </div>
         <div class="field">
-            <label for="manual_date">Manual date</label>
-            <input type="date" name="manual_date" id="manual_date">
+            <label for="storage_location">Storage location <span class="optional-label">Optional</span></label>
+            <input type="text" name="storage_location" id="storage_location" placeholder="e.g. Fridge, pantry">
         </div>
-        <button class="btn btn-primary" type="submit" id="process-scan">Process scan</button>
+        <div class="field">
+            <label for="notes">Notes <span class="optional-label">Optional</span></label>
+            <textarea name="notes" id="notes" placeholder="Any helpful details"></textarea>
+        </div>
+        <div class="field">
+        <label for="manual_date">Manual date</label>
+        <input type="date" name="manual_date" id="manual_date">
+        <small class="field-hint">Or enter the printed date if you don't have a photo.</small>
+        </div>
+        <button class="btn btn-primary scan-submit" type="submit" id="process-scan"><span class="scan-submit-label">Read and review date</span><span class="processing-indicator" id="processing-indicator" hidden></span><span aria-hidden="true">→</span></button>
     </form>
+    </section>
+    <aside class="scan-side">
+        <div class="scan-tip-card"><span class="tip-icon" aria-hidden="true">💡</span><p class="mini-label">QUICK TIP</p><h3>Better photo, better read.</h3><p>Place the package on a flat surface. Use good light, avoid glare, and make sure all date digits are in frame.</p></div>
+        <div class="scan-privacy-card"><span aria-hidden="true">🛡️</span><p><strong>You stay in control</strong><br>Detected dates are suggestions. Nothing is added until you review and confirm.</p></div>
+    </aside>
+    </div>
 </div>
 <script src="{{ url_for('static', filename='js/camera.js') }}" defer></script>
 {% endblock %}

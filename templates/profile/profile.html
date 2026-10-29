@@ -4,9 +4,10 @@
 <div class="card profile-card">
     <div class="profile-heading">
         <span class="profile-avatar" aria-hidden="true">{{ user.avatar }}</span>
-        <h2>Profile</h2>
+        <div><p class="mini-label">YOUR FRESHWATCH PROFILE</p><h2>{{ user.name }}</h2></div>
     </div>
-    <p><strong>Name:</strong> {{ user.name }}</p>
-    <p><strong>Email:</strong> {{ user.email }}</p>
+    <p><strong>Name</strong><span>{{ user.name }}</span></p>
+    <p><strong>Email</strong><span>{{ user.email }}</span></p>
+    <a class="btn btn-primary" href="{{ url_for('main.settings') }}">Edit profile <span aria-hidden="true">→</span></a>
 </div>
 {% endblock %}

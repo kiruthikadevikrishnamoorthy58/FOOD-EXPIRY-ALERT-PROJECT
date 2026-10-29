@@ -1,8 +1,13 @@
 {% extends 'base.html' %}
 {% block title %}Product details{% endblock %}
 {% block content %}
-<div class="card form-card">
-    <h2>{{ product.product_name }}</h2>
+<div class="page-intro">
+    <p class="eyebrow eyebrow-soft">Your kitchen · Product details</p>
+    <h1>Edit this <span>food item.</span></h1>
+    <p>Update product information or correct the expiry date in your inventory.</p>
+</div>
+<div class="card form-card product-edit-card">
+    <h2><span aria-hidden="true">🥫</span> {{ product.product_name }}</h2>
     <form method="post">
         {{ form.hidden_tag() }}
         <div class="field">

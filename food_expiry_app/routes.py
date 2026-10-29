@@ -71,21 +71,49 @@ def logout():
 
 @main_bp.route('/')
 def landing():
-    return render_template('landing.html')
+    stats = None
+    if current_user.is_authenticated:
+        products = Product.query.filter_by(user_id=current_user.id).all()
+        stats = {
+            'total': len(products),
+            'fresh': sum(1 for product in products if get_expiry_status(product.expiry_date)['label'] == 'Within Date'),
+            'soon': sum(1 for product in products if get_expiry_status(product.expiry_date)['label'] == 'Expiring Soon'),
+            'expired': sum(1 for product in products if get_expiry_status(product.expiry_date)['label'] == 'Expired'),
+        }
+    return render_template('landing.html', stats=stats)
 
 
 @main_bp.route('/dashboard')
 @login_required
 def dashboard():
     products = Product.query.filter_by(user_id=current_user.id).order_by(Product.date_added.desc()).all()
+    today = date.today()
     totals = {
         'total': len(products),
         'fresh': sum(1 for p in products if get_expiry_status(p.expiry_date)['label'] == 'Within Date'),
         'soon': sum(1 for p in products if get_expiry_status(p.expiry_date)['label'] == 'Expiring Soon'),
         'expired': sum(1 for p in products if get_expiry_status(p.expiry_date)['label'] == 'Expired'),
     }
+    upcoming = sorted(
+        (p for p in products if 0 <= (p.expiry_date - today).days <= 7),
+        key=lambda product: product.expiry_date,
+    )[:5]
+    denominator = totals['total'] or 1
+    chart = [
+        {'label': 'Fresh', 'count': totals['fresh'], 'class': 'green', 'percent': totals['fresh'] / denominator * 100},
+        {'label': 'Soon', 'count': totals['soon'], 'class': 'yellow', 'percent': totals['soon'] / denominator * 100},
+        {'label': 'Expired', 'count': totals['expired'], 'class': 'red', 'percent': totals['expired'] / denominator * 100},
+    ]
     recent = products[:5]
-    return render_template('dashboard/dashboard.html', products=products, totals=totals, recent=recent)
+    return render_template(
+        'dashboard/dashboard.html',
+        products=products,
+        totals=totals,
+        recent=recent,
+        upcoming=upcoming,
+        chart=chart,
+        today=today,
+    )
 
 
 @main_bp.route('/scan', methods=['GET', 'POST'])
@@ -176,6 +204,20 @@ def verify_scan():
             session['pending_scan'] = pending
             return render_template('scanner/verify_scan.html', pending=pending, edit_mode=True)
 
+        if action == 'update-date':
+            expiry_date = parse_date(request.form.get('expiry_date'))
+            if not expiry_date:
+                flash('Please enter a valid expiry date before continuing.', 'danger')
+                return render_template('scanner/verify_scan.html', pending=pending, edit_mode=True)
+            pending['expiry_date'] = expiry_date.isoformat()
+            pending['product_name'] = request.form.get('product_name', pending.get('product_name', 'Unknown product')).strip() or 'Unknown product'
+            pending['category'] = request.form.get('category', pending.get('category', 'General')).strip() or 'General'
+            pending['notes'] = request.form.get('notes', pending.get('notes', '')).strip()
+            pending['storage_location'] = request.form.get('storage_location', pending.get('storage_location', '')).strip()
+            pending['ocr_text'] = request.form.get('ocr_text', pending.get('ocr_text', ''))
+            session['pending_scan'] = pending
+            return render_template('scanner/verify_scan.html', pending=pending)
+
         if action == 'rescan':
             session.pop('pending_scan', None)
             return redirect(url_for('main.scan_product'))
@@ -200,13 +242,22 @@ def inventory():
     elif sort_by == 'expiry_date':
         products = sorted(products, key=lambda p: p.expiry_date)
 
+    has_products = Product.query.filter_by(user_id=current_user.id).first() is not None
     filtered = []
     for product in products:
         status = get_expiry_status(product.expiry_date)['label']
         if filter_status == 'all' or filter_status == status.lower().replace(' ', '_'):
             filtered.append(product)
     today = date.today()
-    return render_template('inventory/inventory.html', products=filtered, filter_status=filter_status, sort_by=sort_by, search=search, today=today)
+    return render_template(
+        'inventory/inventory.html',
+        products=filtered,
+        filter_status=filter_status,
+        sort_by=sort_by,
+        search=search,
+        today=today,
+        has_products=has_products,
+    )
 
 
 @main_bp.route('/product/<int:product_id>', methods=['GET', 'POST'])
@@ -290,12 +341,20 @@ def profile():
 @login_required
 def reminders():
     products = Product.query.filter_by(user_id=current_user.id).all()
+    alert_settings = AlertSettings.query.filter_by(user_id=current_user.id).first()
     items = []
     for product in products:
         status = get_expiry_status(product.expiry_date)
         if status['label'] in {'Expiring Soon', 'Expired'}:
             items.append({'product': product, 'status': status})
-    return render_template('alerts/reminders.html', items=items)
+    items.sort(key=lambda item: item['product'].expiry_date)
+    return render_template(
+        'alerts/reminders.html',
+        items=items,
+        alert_sound=alert_settings.sound_choice if alert_settings else 'bell',
+        alert_volume=alert_settings.volume if alert_settings else 0.5,
+        alerts_enabled=alert_settings.enabled if alert_settings else True,
+    )
 
 
 @main_bp.route('/health')

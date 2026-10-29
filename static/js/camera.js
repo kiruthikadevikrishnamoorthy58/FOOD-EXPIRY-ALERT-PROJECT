@@ -1,5 +1,6 @@
 (() => {
-    const form = document.querySelector('.form-card form');
+    const processButton = document.getElementById('process-scan');
+    const form = processButton?.closest('form');
     const openButton = document.getElementById('open-camera');
     const captureButton = document.getElementById('capture-photo');
     const retakeButton = document.getElementById('retake-photo');
@@ -8,11 +9,14 @@
     const canvas = document.getElementById('capture-canvas');
     const fileInput = document.getElementById('image');
     const message = document.getElementById('camera-message');
+    const placeholder = document.getElementById('camera-placeholder');
+    const processingIndicator = document.getElementById('processing-indicator');
+    const processLabel = document.querySelector('.scan-submit-label');
     let stream = null;
     let capturedFile = null;
 
     if (!form || !openButton || !captureButton || !retakeButton || !video
-        || !capturedPreview || !canvas || !fileInput || !message) {
+        || !capturedPreview || !canvas || !fileInput || !message || !placeholder) {
         return;
     }
 
@@ -33,6 +37,7 @@
         stopCamera();
         capturedPreview.hidden = true;
         video.hidden = false;
+        placeholder.hidden = true;
         captureButton.hidden = true;
         retakeButton.hidden = true;
         message.textContent = 'Requesting camera permission…';
@@ -61,6 +66,7 @@
         } catch (cameraError) {
             stopCamera();
             video.hidden = true;
+            placeholder.hidden = false;
             const messages = {
                 NotAllowedError: 'Camera permission was denied. Allow camera access in your browser settings, or upload a photo.',
                 NotFoundError: 'No camera was found on this device. Please upload a photo instead.',
@@ -97,6 +103,7 @@
             capturedPreview.src = URL.createObjectURL(capturedFile);
             capturedPreview.hidden = false;
             video.hidden = true;
+            placeholder.hidden = true;
             captureButton.hidden = true;
             retakeButton.hidden = false;
             message.textContent = 'Photo captured. Process scan to read the expiry label.';
@@ -111,6 +118,7 @@
             capturedPreview.hidden = true;
             stopCamera();
             video.hidden = true;
+            placeholder.hidden = true;
             captureButton.hidden = true;
             retakeButton.hidden = true;
             message.textContent = `Selected ${fileInput.files[0].name}. Process scan to read it.`;
@@ -119,13 +127,20 @@
 
     form.addEventListener('submit', (event) => {
         if (!capturedFile) {
-            return;
+            if (!fileInput.files.length && !document.getElementById('manual_date').value) {
+                return;
+            }
+        } else {
+            event.preventDefault();
+            const transfer = new DataTransfer();
+            transfer.items.add(capturedFile);
+            fileInput.files = transfer.files;
+            form.submit();
         }
-        event.preventDefault();
-        const transfer = new DataTransfer();
-        transfer.items.add(capturedFile);
-        fileInput.files = transfer.files;
-        form.submit();
+
+        processButton.disabled = true;
+        processLabel.textContent = 'Preparing verification...';
+        processingIndicator.hidden = false;
     });
 
     window.addEventListener('pagehide', stopCamera);

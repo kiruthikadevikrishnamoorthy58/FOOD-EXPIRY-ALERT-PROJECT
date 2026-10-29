@@ -14,6 +14,8 @@ A Flask-based food inventory and expiry tracking web app built for the capstone 
 - Product scan workflow with OCR-based expiry detection and manual validation step
 - Camera scanning on HTTPS-supported browsers, with capture, preview, and retake controls
 - Reminder section for soon-to-expire or expired items
+- Browser reminder tones with selectable sound and volume; start and acknowledge sounds on the reminders page (no background-alert service)
+- Responsive food-tech interface with user-specific dashboard summaries and inventory chart
 - Settings page for alert preferences
 - SQLite database for local development
 - Lightweight HTML/CSS templates with responsive layout
@@ -90,6 +92,8 @@ py -3.12 -m pytest -q
 - Restrict access to authenticated pages
 - Store user records and products per user account
 - A website cannot reliably detect when a user uninstalls an installed web app; uninstalling alone may not clear the browser's login cookie.
+- Reminder sounds require a user gesture and remain active only while the reminders page is open. Browser and device policies may prevent or interrupt audio.
+- Google OAuth and password recovery are not configured in this project; login and signup use email and password.
 
 ## Production Notes
 This project is a capstone MVP, not a fully audited production service. Before handling real users or food-inventory data, configure a persistent database, backups, OAuth if required, and host-level monitoring and rate limiting. Never share hosting credentials in chat or commit them to the repository.

@@ -1,24 +1,39 @@
 {% extends 'base.html' %}
 {% block title %}Sign Up{% endblock %}
 {% block content %}
-<div class="card form-card small-card">
-    <h2>Create your account</h2>
-    <form method="post">
-        {{ form.hidden_tag() }}
-        <div class="field">
-            {{ form.name.label }}
-            {{ form.name }}
-        </div>
-        <div class="field">
-            {{ form.email.label }}
-            {{ form.email }}
-        </div>
-        <div class="field">
-            {{ form.password.label }}
-            {{ form.password }}
-        </div>
-        <button class="btn btn-primary" type="submit">Sign Up</button>
-    </form>
-    <p class="auth-switch">Already signed up? <a href="{{ url_for('auth.login') }}">Log in with your account</a></p>
+<div class="auth-layout">
+    <aside class="auth-art auth-art-signup">
+        <p class="eyebrow">A brighter way to manage food</p>
+        <h1>Make room for more delicious moments.</h1>
+        <p>Keep your food organized, spot dates sooner, and make every ingredient count.</p>
+        <div class="auth-art-food" aria-hidden="true"><span>🍓</span><span>🥑</span><span>🍊</span><span>🌽</span></div>
+        <div class="auth-art-note"><span aria-hidden="true">✨</span> Your kitchen helper starts here</div>
+    </aside>
+    <section class="card form-card auth-form-card">
+        <p class="mini-label">ONE ACCOUNT · YOUR WHOLE KITCHEN</p>
+        <h2>Create your account</h2>
+        <p class="auth-intro">Sign up once, then come back anytime to your saved kitchen.</p>
+        <form method="post">
+            {{ form.hidden_tag() }}
+            <div class="field">
+                {{ form.name.label }}
+                {{ form.name(autocomplete='name', placeholder='Your name') }}
+                {% for error in form.name.errors %}<span class="auth-error">{{ error }}</span>{% endfor %}
+            </div>
+            <div class="field">
+                {{ form.email.label }}
+                {{ form.email(autocomplete='email', placeholder='you@example.com') }}
+                {% for error in form.email.errors %}<span class="auth-error">{{ error }}</span>{% endfor %}
+            </div>
+            <div class="field">
+                {{ form.password.label }}
+                {{ form.password(autocomplete='new-password', placeholder='At least 6 characters') }}
+                {% for error in form.password.errors %}<span class="auth-error">{{ error }}</span>{% endfor %}
+            </div>
+            <button class="btn btn-primary" type="submit">Create my account <span aria-hidden="true">→</span></button>
+        </form>
+        <p class="oauth-note">Your password is securely hashed and never displayed.</p>
+        <p class="auth-switch">Already signed up? <a href="{{ url_for('auth.login') }}">Log in with your account</a></p>
+    </section>
 </div>
 {% endblock %}

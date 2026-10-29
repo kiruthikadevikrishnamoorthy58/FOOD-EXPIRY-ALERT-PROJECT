@@ -2,40 +2,99 @@
 {% block title %}Dashboard{% endblock %}
 {% block content %}
 <div class="dashboard">
-    <div class="section-header">
+    <section class="dashboard-welcome">
         <div>
             <p class="eyebrow eyebrow-soft">Your fresh space</p>
-            <h2>Good day, {{ current_user.name }} 👋</h2>
+            <h1>Good day, {{ current_user.name }} <span aria-hidden="true">👋</span></h1>
+            <p>Your kitchen at a glance. Let's keep good food at its best.</p>
         </div>
-        <a class="btn btn-primary" href="{{ url_for('main.scan_product') }}"><span aria-hidden="true">📸</span> Scan something fresh</a>
-    </div>
+        <a class="btn btn-primary" href="{{ url_for('main.scan_product') }}"><span aria-hidden="true">📸</span> Scan Food Product <span aria-hidden="true">→</span></a>
+        <div class="welcome-sparkle sparkle-a" aria-hidden="true">✦</div>
+        <div class="welcome-sparkle sparkle-b" aria-hidden="true">✳</div>
+    </section>
     <div class="stats-grid">
-        <div class="stat-card green">
+        <div class="stat-card total-stat">
             <span><span class="stat-icon" aria-hidden="true">🧺</span> Total products</span>
             <strong>{{ totals.total }}</strong>
+            <small>In your kitchen</small>
         </div>
-        <div class="stat-card green">
-            <span><span class="stat-icon" aria-hidden="true">🥬</span> Within date</span>
+        <div class="stat-card green fresh-stat">
+            <span><span class="stat-icon" aria-hidden="true">🥬</span> Fresh products</span>
             <strong>{{ totals.fresh }}</strong>
+            <small>More than 2 days left</small>
         </div>
-        <div class="stat-card yellow">
+        <div class="stat-card yellow soon-stat">
             <span><span class="stat-icon" aria-hidden="true">⏳</span> Expiring soon</span>
             <strong>{{ totals.soon }}</strong>
+            <small>Today or within 2 days</small>
         </div>
-        <div class="stat-card red">
+        <div class="stat-card red expired-stat">
             <span><span class="stat-icon" aria-hidden="true">🍅</span> Expired</span>
             <strong>{{ totals.expired }}</strong>
+            <small>Needs your attention</small>
         </div>
     </div>
-    <div class="card">
-        <h3>Recently added to your kitchen <span aria-hidden="true">✨</span></h3>
-        <ul class="list">
-            {% for product in recent %}
-                <li><span aria-hidden="true">🥕</span> &nbsp;{{ product.product_name }} <span class="list-date">— {{ product.expiry_date }}</span></li>
+    <div class="dashboard-grid">
+        <section class="card timeline-card">
+            <div class="card-heading">
+                <div><p class="mini-label">PLAN AHEAD</p><h2>Coming up next</h2></div>
+                <a class="text-link" href="{{ url_for('main.reminders') }}">All reminders <span aria-hidden="true">→</span></a>
+            </div>
+            {% if upcoming %}
+            <div class="expiry-timeline">
+                {% for product in upcoming %}
+                {% set diff = (product.expiry_date - today).days %}
+                <a class="timeline-item {% if diff <= 2 %}timeline-urgent{% endif %}" href="{{ url_for('main.product_detail', product_id=product.id) }}">
+                    <span class="timeline-date"><strong>{{ product.expiry_date.strftime('%d') }}</strong><small>{{ product.expiry_date.strftime('%b') }}</small></span>
+                    <span class="timeline-line" aria-hidden="true"></span>
+                    <span class="timeline-product"><strong>{{ product.product_name }}</strong><small>{% if diff == 0 %}Expires today{% elif diff == 1 %}1 day remaining{% else %}{{ diff }} days remaining{% endif %}</small></span>
+                    <span class="timeline-arrow" aria-hidden="true">↗</span>
+                </a>
+                {% endfor %}
+            </div>
             {% else %}
-                <li>Your inventory is ready for its first fresh find. <a href="{{ url_for('main.scan_product') }}">Scan a product →</a></li>
-            {% endfor %}
-        </ul>
+            <div class="empty-inline"><span aria-hidden="true">🌿</span><p>No upcoming expiries in the next 7 days. Your fridge is looking good!</p></div>
+            {% endif %}
+        </section>
+        <section class="card chart-card">
+            <div class="card-heading"><div><p class="mini-label">YOUR INVENTORY</p><h2>Freshness mix</h2></div><span class="chart-icon" aria-hidden="true">✳</span></div>
+            {% if totals.total %}
+            <div class="freshness-chart" role="img" aria-label="Inventory status: {{ totals.fresh }} fresh, {{ totals.soon }} expiring soon, {{ totals.expired }} expired">
+                {% for item in chart %}
+                <div class="chart-row">
+                    <div class="chart-label"><span class="chart-dot {{ item.class }}"></span>{{ item.label }}<strong>{{ item.count }}</strong></div>
+                    <div class="chart-track"><span class="chart-bar {{ item.class }}" style="width: {{ item.percent }}%"></span></div>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <div class="chart-empty"><span aria-hidden="true">🥝</span><p>Your freshness insights will appear here when you add products.</p></div>
+            {% endif %}
+            <a class="btn btn-soft-purple" href="{{ url_for('main.inventory') }}">Explore inventory <span aria-hidden="true">→</span></a>
+        </section>
+        <section class="card recent-card">
+            <div class="card-heading"><div><p class="mini-label">JUST ADDED</p><h2>Recently scanned</h2></div><a class="text-link" href="{{ url_for('main.inventory') }}">View all <span aria-hidden="true">→</span></a></div>
+            {% if recent %}
+            <div class="recent-products">
+                {% for product in recent %}
+                {% set diff = (product.expiry_date - today).days %}
+                <a class="recent-product" href="{{ url_for('main.product_detail', product_id=product.id) }}">
+                    <span class="product-emoji" aria-hidden="true">{% if 'dairy' in product.category|lower %}🥛{% elif 'fruit' in product.category|lower %}🍎{% elif 'vegetable' in product.category|lower %}🥦{% else %}🥫{% endif %}</span>
+                    <span class="recent-product-copy"><strong>{{ product.product_name }}</strong><small>Expires {{ product.expiry_date.strftime('%b %d, %Y') }}</small></span>
+                    <span class="status-dot {% if diff < 0 %}red{% elif diff <= 2 %}yellow{% else %}green{% endif %}" aria-label="{% if diff < 0 %}Expired{% elif diff <= 2 %}Expiring soon{% else %}Fresh{% endif %}"></span>
+                </a>
+                {% endfor %}
+            </div>
+            {% else %}
+            <div class="empty-inline"><span aria-hidden="true">🧺</span><p>Your inventory is waiting for its first fresh find.</p><a class="text-link" href="{{ url_for('main.scan_product') }}">Scan your first product →</a></div>
+            {% endif %}
+        </section>
+        <section class="quick-access-card">
+            <p class="mini-label">QUICK ACCESS</p><h2>Your kitchen tools</h2>
+            <a href="{{ url_for('main.inventory') }}"><span class="quick-icon quick-green" aria-hidden="true">🥗</span><span><strong>Food inventory</strong><small>Browse and update items</small></span><b aria-hidden="true">→</b></a>
+            <a href="{{ url_for('main.reminders') }}"><span class="quick-icon quick-orange" aria-hidden="true">🔔</span><span><strong>Expiry reminders</strong><small>See what needs attention</small></span><b aria-hidden="true">→</b></a>
+            <a href="{{ url_for('main.settings') }}"><span class="quick-icon quick-purple" aria-hidden="true">⚙️</span><span><strong>Preferences</strong><small>Personalize your experience</small></span><b aria-hidden="true">→</b></a>
+        </section>
     </div>
 </div>
 {% endblock %}

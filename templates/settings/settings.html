@@ -74,17 +74,29 @@
                 <input type="hidden" name="form_name" value="alerts">
                 <div class="field">
                     {{ alert_form.sound_choice.label }}
-                    {{ alert_form.sound_choice }}
+                    <div class="sound-select-row">
+                        {{ alert_form.sound_choice(id='sound-choice') }}
+                    </div>
+                    <div class="sound-previews" aria-label="Preview available sounds">
+                        <button class="sound-preview-choice" type="button" data-sound-preview="bell"><span aria-hidden="true">🔔</span> Bell <small>Preview</small></button>
+                        <button class="sound-preview-choice" type="button" data-sound-preview="ding"><span aria-hidden="true">✨</span> Ding <small>Preview</small></button>
+                        <button class="sound-preview-choice" type="button" data-sound-preview="chime"><span aria-hidden="true">🎐</span> Chime <small>Preview</small></button>
+                    </div>
                 </div>
                 <div class="field">
                     {{ alert_form.volume.label }}
-                    {{ alert_form.volume }}
+                    {{ alert_form.volume(type='range', min='0', max='1', step='0.05', id='alert-volume') }}
+                    <div class="volume-hint"><span>Quiet</span><output id="volume-value">{{ ((alert_form.volume.data if alert_form.volume.data is not none else 0.5) * 100)|int }}%</output><span>Gentle</span></div>
                 </div>
                 <div class="field checkbox-row">
                     {{ alert_form.enabled }}
                     {{ alert_form.enabled.label }}
                 </div>
-                <button class="btn btn-primary" type="submit">Save settings <span aria-hidden="true">→</span></button>
+                <div class="alert-settings-actions">
+                    <button class="btn btn-secondary" type="button" data-test-alert>Test Alert <span aria-hidden="true">♫</span></button>
+                    <button class="btn btn-primary" type="submit">Save settings <span aria-hidden="true">→</span></button>
+                </div>
+                <p class="sound-help" data-sound-message role="status" aria-live="polite">Alert sounds play only after you interact with the page.</p>
             </form>
         </section>
     </div>

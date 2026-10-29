@@ -1,20 +1,34 @@
 {% extends 'base.html' %}
 {% block title %}Login{% endblock %}
 {% block content %}
-<div class="card form-card small-card">
-    <h2>Welcome back</h2>
-    <form method="post">
-        {{ form.hidden_tag() }}
-        <div class="field">
-            {{ form.email.label }}
-            {{ form.email }}
-        </div>
-        <div class="field">
-            {{ form.password.label }}
-            {{ form.password }}
-        </div>
-        <button class="btn btn-primary" type="submit">Login</button>
-    </form>
-    <p class="auth-switch">New to FreshWatch? <a href="{{ url_for('auth.signup') }}">Create your account once</a></p>
+<div class="auth-layout">
+    <aside class="auth-art">
+        <p class="eyebrow">Good to see you again</p>
+        <h1>Your fresh-start kitchen is waiting.</h1>
+        <p>Pick up right where you left off. Your kitchen inventory is just a sign-in away.</p>
+        <div class="auth-art-food" aria-hidden="true"><span>🥑</span><span>🥕</span><span>🍋</span><span>🥬</span></div>
+        <div class="auth-art-note"><span aria-hidden="true">🌱</span> Keep good food in sight</div>
+    </aside>
+    <section class="card form-card auth-form-card">
+        <p class="mini-label">YOUR KITCHEN, AT A GLANCE</p>
+        <h2>Welcome back</h2>
+        <p class="auth-intro">Sign in to pick up where you left off.</p>
+        <form method="post">
+            {{ form.hidden_tag() }}
+            <div class="field">
+                {{ form.email.label }}
+                {{ form.email(autocomplete='email', placeholder='you@example.com') }}
+                {% for error in form.email.errors %}<span class="auth-error">{{ error }}</span>{% endfor %}
+            </div>
+            <div class="field">
+                {{ form.password.label }}
+                {{ form.password(autocomplete='current-password', placeholder='Your password') }}
+                {% for error in form.password.errors %}<span class="auth-error">{{ error }}</span>{% endfor %}
+            </div>
+            <button class="btn btn-primary" type="submit">Log in <span aria-hidden="true">→</span></button>
+        </form>
+        <p class="oauth-note">Sign in securely with your email and password.</p>
+        <p class="auth-switch">New to FreshWatch? <a href="{{ url_for('auth.signup') }}">Create your account once</a></p>
+    </section>
 </div>
 {% endblock %}

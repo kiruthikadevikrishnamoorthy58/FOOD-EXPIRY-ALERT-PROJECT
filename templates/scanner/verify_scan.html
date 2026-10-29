@@ -1,8 +1,21 @@
 {% extends 'base.html' %}
 {% block title %}Verify expiry date{% endblock %}
 {% block content %}
-<div class="card form-card">
-    <h2>Please verify the expiry date detected by the system. Is this date correct?</h2>
+<div class="verify-page">
+    <header class="page-intro">
+        <p class="eyebrow eyebrow-soft">One last check</p>
+        <h1>Review your <span>scan.</span></h1>
+        <p>OCR can make mistakes. Check the package and confirm the details before saving.</p>
+    </header>
+    {% if not pending.expiry_date %}
+    <div class="scan-warning" role="alert"><span aria-hidden="true">⚠️</span><div><strong>We couldn't confidently read an expiry date.</strong><p>Please enter the date from the package before confirming.</p></div></div>
+    {% elif edit_mode %}
+    <div class="scan-notice"><span aria-hidden="true">✏️</span> Update the date below, then choose “Review updated date” to verify it.</div>
+    {% else %}
+    <div class="scan-notice"><span aria-hidden="true">🔎</span> Suggested date found. Please compare it with the package.</div>
+    {% endif %}
+    <div class="card form-card verify-card">
+    <div class="scan-card-heading"><span class="scan-step step-purple">02</span><div><h2>{% if edit_mode %}Edit expiry date{% else %}Product details{% endif %}</h2><p>Your scan is not saved until you confirm it.</p></div></div>
     <form method="post">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <div class="field">
@@ -11,7 +24,8 @@
         </div>
         <div class="field">
             <label for="expiry_date">Expiry date</label>
-            <input type="date" id="expiry_date" name="expiry_date" value="{{ pending.expiry_date }}">
+            <input type="date" id="expiry_date" name="expiry_date" value="{{ pending.expiry_date or '' }}" {% if pending.expiry_date and not edit_mode %}readonly aria-describedby="date-readonly-hint"{% endif %} required>
+            {% if pending.expiry_date and not edit_mode %}<small id="date-readonly-hint" class="field-hint">Choose “Edit Date” to correct the detected date.</small>{% endif %}
         </div>
         <div class="field">
             <label for="category">Category</label>
@@ -25,15 +39,23 @@
             <label for="storage_location">Storage location</label>
             <input type="text" id="storage_location" name="storage_location" value="{{ pending.storage_location or '' }}">
         </div>
-        <div class="field">
+        <details class="ocr-details">
+            <summary>View text detected on the label</summary>
+            <div class="field">
             <label for="ocr_text">Detected text</label>
             <textarea id="ocr_text" name="ocr_text">{{ pending.ocr_text or '' }}</textarea>
-        </div>
+            </div>
+        </details>
         <div class="button-row">
-            <button class="btn btn-primary" type="submit" name="action" value="save">OK — Correct</button>
+            {% if edit_mode %}
+            <button class="btn btn-primary" type="submit" name="action" value="update-date">Review updated date <span aria-hidden="true">→</span></button>
+            {% else %}
+            <button class="btn btn-primary" type="submit" name="action" value="save">OK — Correct <span aria-hidden="true">✓</span></button>
             <button class="btn btn-secondary" type="submit" name="action" value="edit">Edit Date</button>
-            <button class="btn btn-danger" type="submit" name="action" value="rescan">Re-scan</button>
+            {% endif %}
+            <button class="btn btn-outline-danger" type="submit" name="action" value="rescan">Re-scan</button>
         </div>
     </form>
+</div>
 </div>
 {% endblock %}
