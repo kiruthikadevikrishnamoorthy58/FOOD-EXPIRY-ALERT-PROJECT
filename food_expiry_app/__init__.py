@@ -6,6 +6,7 @@ from flask import Flask
 from flask_login import LoginManager
 from flask_sqlalchemy import SQLAlchemy
 from flask_wtf.csrf import CSRFProtect
+from sqlalchemy import inspect, text
 from werkzeug.middleware.proxy_fix import ProxyFix
 
 load_dotenv()
@@ -73,6 +74,12 @@ def create_app(test_config=None):
     from .models import User, Product, AlertSettings
     with app.app_context():
         db.create_all()
+        user_columns = {column['name'] for column in inspect(db.engine).get_columns('users')}
+        if 'avatar' not in user_columns:
+            with db.engine.begin() as connection:
+                connection.execute(text(
+                    "ALTER TABLE users ADD COLUMN avatar VARCHAR(16) NOT NULL DEFAULT '👩‍🍳'"
+                ))
 
     from .routes import auth_bp, main_bp
     app.register_blueprint(auth_bp)

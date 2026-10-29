@@ -2,7 +2,10 @@
 {% block title %}Profile{% endblock %}
 {% block content %}
 <div class="card profile-card">
-    <h2>Profile</h2>
+    <div class="profile-heading">
+        <span class="profile-avatar" aria-hidden="true">{{ user.avatar }}</span>
+        <h2>Profile</h2>
+    </div>
     <p><strong>Name:</strong> {{ user.name }}</p>
     <p><strong>Email:</strong> {{ user.email }}</p>
 </div>

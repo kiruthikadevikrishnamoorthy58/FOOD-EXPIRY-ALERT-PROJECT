@@ -7,7 +7,7 @@ from flask_login import login_required, login_user, logout_user, current_user
 from werkzeug.utils import secure_filename
 
 from . import db, login_manager
-from .forms import AlertSettingsForm, LoginForm, ProductForm, SignupForm
+from .forms import AccountProfileForm, AlertSettingsForm, LoginForm, ProductForm, SignupForm
 from .models import AlertSettings, Product, User
 from .utils import extract_ocr_text_from_image, find_best_expiry_date, get_expiry_status, normalize_email, parse_date
 
@@ -246,15 +246,38 @@ def settings():
         settings_record = AlertSettings(user_id=current_user.id, sound_choice='bell', volume=0.5, enabled=True)
         db.session.add(settings_record)
         db.session.commit()
-    form = AlertSettingsForm(obj=settings_record)
-    if form.validate_on_submit():
-        settings_record.sound_choice = form.sound_choice.data
-        settings_record.volume = form.volume.data
-        settings_record.enabled = bool(form.enabled.data)
-        db.session.commit()
-        flash('Settings saved successfully.', 'success')
-        return redirect(url_for('main.settings'))
-    return render_template('settings/settings.html', form=form, settings=settings_record)
+    alert_form = AlertSettingsForm(obj=settings_record)
+    account_form = AccountProfileForm(obj=current_user)
+    if request.method == 'POST' and request.form.get('form_name') == 'account':
+        if account_form.validate_on_submit():
+            email = normalize_email(account_form.email.data)
+            existing_user = User.query.filter(
+                User.email == email,
+                User.id != current_user.id,
+            ).first()
+            if existing_user:
+                account_form.email.errors.append('That email address is already associated with an account.')
+            else:
+                current_user.name = account_form.name.data.strip()
+                current_user.email = email
+                current_user.avatar = account_form.avatar.data
+                db.session.commit()
+                flash('Your account profile has been updated.', 'success')
+                return redirect(url_for('main.settings'))
+    elif request.method == 'POST' and request.form.get('form_name') == 'alerts':
+        if alert_form.validate_on_submit():
+            settings_record.sound_choice = alert_form.sound_choice.data
+            settings_record.volume = alert_form.volume.data
+            settings_record.enabled = bool(alert_form.enabled.data)
+            db.session.commit()
+            flash('Settings saved successfully.', 'success')
+            return redirect(url_for('main.settings'))
+    return render_template(
+        'settings/settings.html',
+        account_form=account_form,
+        alert_form=alert_form,
+        settings=settings_record,
+    )
 
 
 @main_bp.route('/profile')

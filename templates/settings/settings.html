@@ -5,12 +5,12 @@
     <div class="settings-heading">
         <p class="eyebrow eyebrow-soft">Your kitchen, your way</p>
         <h1>Settings <span aria-hidden="true">⚙️</span></h1>
-        <p>Manage your account details and choose how freshness alerts work for you.</p>
+        <p>Update your account, pick a profile picture, and choose how freshness alerts work for you.</p>
     </div>
     <div class="settings-grid">
         <section class="account-card">
             <div class="account-card-heading">
-                <span class="account-avatar" aria-hidden="true">👩‍🍳</span>
+                <span class="account-avatar" aria-hidden="true">{{ current_user.avatar }}</span>
                 <div>
                     <p class="account-label">Your account</p>
                     <h2>{{ current_user.name }}</h2>
@@ -31,6 +31,35 @@
                 </div>
             </dl>
             <p class="account-note"><span aria-hidden="true">🔒</span> Your password stays private and is never displayed here.</p>
+            <form class="account-edit-form" method="post">
+                {{ account_form.hidden_tag() }}
+                <input type="hidden" name="form_name" value="account">
+                <h3>Edit your account</h3>
+                <div class="field">
+                    {{ account_form.name.label }}
+                    {{ account_form.name }}
+                    {% for error in account_form.name.errors %}<span class="field-error">{{ error }}</span>{% endfor %}
+                </div>
+                <div class="field">
+                    {{ account_form.email.label }}
+                    {{ account_form.email }}
+                    {% for error in account_form.email.errors %}<span class="field-error">{{ error }}</span>{% endfor %}
+                </div>
+                <fieldset class="avatar-field">
+                    <legend>{{ account_form.avatar.label.text }}</legend>
+                    <div class="avatar-options">
+                        {% for avatar in account_form.avatar %}
+                        <label class="avatar-choice" for="{{ avatar.id }}">
+                            {{ avatar }}
+                            <span class="avatar-choice-icon" aria-hidden="true">{{ avatar.label.text.split(' ')[0] }}</span>
+                            <span>{{ avatar.label.text.split(' ', 1)[1] }}</span>
+                        </label>
+                        {% endfor %}
+                    </div>
+                    {% for error in account_form.avatar.errors %}<span class="field-error">{{ error }}</span>{% endfor %}
+                </fieldset>
+                <button class="btn btn-profile" type="submit">Save account changes <span aria-hidden="true">→</span></button>
+            </form>
         </section>
         <section class="card alert-settings-card">
             <div class="settings-card-heading">
@@ -41,18 +70,19 @@
                 </div>
             </div>
             <form method="post">
-                {{ form.hidden_tag() }}
+                {{ alert_form.hidden_tag() }}
+                <input type="hidden" name="form_name" value="alerts">
                 <div class="field">
-                    {{ form.sound_choice.label }}
-                    {{ form.sound_choice }}
+                    {{ alert_form.sound_choice.label }}
+                    {{ alert_form.sound_choice }}
                 </div>
                 <div class="field">
-                    {{ form.volume.label }}
-                    {{ form.volume }}
+                    {{ alert_form.volume.label }}
+                    {{ alert_form.volume }}
                 </div>
                 <div class="field checkbox-row">
-                    {{ form.enabled }}
-                    {{ form.enabled.label }}
+                    {{ alert_form.enabled }}
+                    {{ alert_form.enabled.label }}
                 </div>
                 <button class="btn btn-primary" type="submit">Save settings <span aria-hidden="true">→</span></button>
             </form>

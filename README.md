@@ -5,7 +5,7 @@ A Flask-based food inventory and expiry tracking web app built for the capstone 
 ## Features
 - Secure user registration and login using hashed passwords
 - Automatic sign-in after registration and persistent sign-in across browser restarts until logout or remember-cookie expiration
-- Account details in Settings and one-time registration per email address
+- Editable name, email, and selectable food/person avatar in Settings; one-time registration per email address
 - Inventory page for each authenticated user
 - Expiry status rules based on the current date:
   - Green: more than 2 days remaining

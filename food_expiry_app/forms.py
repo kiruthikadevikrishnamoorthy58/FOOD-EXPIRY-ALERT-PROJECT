@@ -1,5 +1,5 @@
 from flask_wtf import FlaskForm
-from wtforms import StringField, PasswordField, DateField, TextAreaField, SelectField, FloatField, BooleanField
+from wtforms import StringField, PasswordField, DateField, TextAreaField, SelectField, FloatField, BooleanField, RadioField
 from wtforms.validators import DataRequired, Email, Length, Optional
 
 
@@ -12,6 +12,21 @@ class SignupForm(FlaskForm):
 class LoginForm(FlaskForm):
     email = StringField('Email', validators=[DataRequired(), Email()])
     password = PasswordField('Password', validators=[DataRequired()])
+
+
+class AccountProfileForm(FlaskForm):
+    name = StringField('Full name', validators=[DataRequired(), Length(min=2, max=80)])
+    email = StringField('Email address', validators=[DataRequired(), Email()])
+    avatar = RadioField('Choose your avatar', choices=[
+        ('🥑', '🥑 Avocado'),
+        ('🍓', '🍓 Strawberry'),
+        ('🥕', '🥕 Carrot'),
+        ('🍋', '🍋 Lemon'),
+        ('👩‍🍳', '👩‍🍳 Woman chef'),
+        ('👨‍🍳', '👨‍🍳 Man chef'),
+        ('👩‍🌾', '👩‍🌾 Woman gardener'),
+        ('👨‍🌾', '👨‍🌾 Man gardener'),
+    ], validators=[DataRequired()])
 
 
 class ProductForm(FlaskForm):

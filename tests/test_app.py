@@ -1,4 +1,5 @@
 from datetime import date, timedelta
+import sqlite3
 
 import pytest
 
@@ -85,6 +86,67 @@ def test_settings_shows_signup_account_details():
     assert b'settings@example.com' in response.data
     assert b'Member since' in response.data
     assert b'password stays private' in response.data
+
+
+def test_settings_updates_account_and_login_uses_new_email():
+    app = build_app()
+    client = app.test_client()
+    client.post('/signup', data={
+        'name': 'Settings Alice',
+        'email': 'settings@example.com',
+        'password': 'secret123',
+    })
+
+    response = client.post('/settings', data={
+        'form_name': 'account',
+        'name': 'Updated Alice',
+        'email': 'updated@example.com',
+        'avatar': '🥑',
+    }, follow_redirects=False)
+    assert response.status_code == 302
+    assert response.location.endswith('/settings')
+
+    settings_response = client.get('/settings')
+    assert b'Updated Alice' in settings_response.data
+    assert b'updated@example.com' in settings_response.data
+    assert '🥑'.encode() in settings_response.data
+
+    client.get('/logout')
+    invalid_login = client.post('/login', data={
+        'email': 'settings@example.com',
+        'password': 'secret123',
+    })
+    assert b'Invalid email or password.' in invalid_login.data
+
+    valid_login = client.post('/login', data={
+        'email': 'updated@example.com',
+        'password': 'secret123',
+    }, follow_redirects=False)
+    assert valid_login.status_code == 302
+    assert valid_login.location.endswith('/dashboard')
+
+
+def test_existing_database_gets_default_avatar_column(tmp_path):
+    database_path = tmp_path / 'legacy-accounts.db'
+    with sqlite3.connect(database_path) as connection:
+        connection.execute(
+            'CREATE TABLE users ('
+            'id INTEGER PRIMARY KEY, '
+            'name VARCHAR(120) NOT NULL, '
+            'email VARCHAR(120) NOT NULL UNIQUE, '
+            'password_hash VARCHAR(255) NOT NULL, '
+            'created_at DATETIME, '
+            'google_id VARCHAR(255))'
+        )
+        connection.execute(
+            'INSERT INTO users (name, email, password_hash) VALUES (?, ?, ?)',
+            ('Legacy Alice', 'legacy@example.com', 'existing-hash'),
+        )
+
+    app = build_app(f"sqlite:///{str(database_path).replace('\\', '/')}")
+    with app.app_context():
+        user = User.query.filter_by(email='legacy@example.com').one()
+        assert user.avatar == '👩‍🍳'
 
 
 def test_inventory_shows_user_products():
