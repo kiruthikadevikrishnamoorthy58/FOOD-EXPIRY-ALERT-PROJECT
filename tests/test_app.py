@@ -5,7 +5,7 @@ import sqlite3
 import pytest
 from PIL import Image
 
-from food_expiry_app import create_app, db
+from food_expiry_app import create_app, db, normalize_database_url
 from food_expiry_app.models import Product, User
 from food_expiry_app.utils import get_expiry_status
 
@@ -71,6 +71,16 @@ def test_signup_account_survives_app_restart(tmp_path):
     })
     assert login_response.status_code == 302
     assert login_response.location.endswith('/dashboard')
+
+
+def test_database_url_uses_psycopg_driver_for_render_postgres():
+    assert normalize_database_url('postgres://user:pass@host/db') == (
+        'postgresql+psycopg://user:pass@host/db'
+    )
+    assert normalize_database_url('postgresql://user:pass@host/db') == (
+        'postgresql+psycopg://user:pass@host/db'
+    )
+    assert normalize_database_url('sqlite:///food_expiry.db') == 'sqlite:///food_expiry.db'
 
 
 def test_settings_shows_signup_account_details():
@@ -254,6 +264,34 @@ def test_manual_scan_requires_review_before_saving_and_supports_date_edit():
         product = Product.query.filter_by(product_name='Yogurt').one()
         assert product.expiry_date == date(2030, 5, 25)
         assert product.confirmation_status == 'confirmed'
+
+
+def test_rescan_returns_to_scanner_and_discards_pending_scan():
+    app = build_app()
+    client = app.test_client()
+    client.post('/signup', data={
+        'name': 'Rescan Alice',
+        'email': 'rescan@example.com',
+        'password': 'secret123',
+    })
+    client.post('/scan', data={
+        'product_name': 'Yogurt',
+        'category': 'Dairy',
+        'manual_date': '2030-05-21',
+    })
+
+    rescan = client.post('/verify-scan', data={
+        'action': 'rescan',
+    }, follow_redirects=True)
+    assert rescan.status_code == 200
+    assert rescan.request.path == '/scan'
+    assert b'Open Camera' in rescan.data
+
+    verify_without_pending_scan = client.get('/verify-scan', follow_redirects=False)
+    assert verify_without_pending_scan.status_code == 302
+    assert verify_without_pending_scan.location.endswith('/scan')
+    with app.app_context():
+        assert Product.query.filter_by(product_name='Yogurt').count() == 0
 
 
 def test_image_ocr_result_is_reviewed_before_it_is_saved(monkeypatch, tmp_path):

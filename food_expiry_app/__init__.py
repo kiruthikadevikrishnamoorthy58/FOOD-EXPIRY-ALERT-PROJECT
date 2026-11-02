@@ -1,5 +1,6 @@
 import os
 import secrets
+from datetime import timedelta
 
 from dotenv import load_dotenv
 from flask import Flask
@@ -18,6 +19,14 @@ login_manager.login_message_category = 'warning'
 csrf = CSRFProtect()
 
 
+def normalize_database_url(database_url):
+    if database_url.startswith('postgres://'):
+        return database_url.replace('postgres://', 'postgresql+psycopg://', 1)
+    if database_url.startswith('postgresql://'):
+        return database_url.replace('postgresql://', 'postgresql+psycopg://', 1)
+    return database_url
+
+
 def create_app(test_config=None):
     app = Flask(
         __name__,
@@ -34,11 +43,14 @@ def create_app(test_config=None):
 
     app.config.from_mapping(
         SECRET_KEY=secret_key or secrets.token_urlsafe(32),
-        SQLALCHEMY_DATABASE_URI=os.getenv('DATABASE_URL', 'sqlite:///food_expiry.db'),
+        SQLALCHEMY_DATABASE_URI=normalize_database_url(
+            os.getenv('DATABASE_URL', 'sqlite:///food_expiry.db')
+        ),
         SQLALCHEMY_TRACK_MODIFICATIONS=False,
         UPLOAD_FOLDER='data/uploads',
         MAX_CONTENT_LENGTH=5 * 1024 * 1024,
         WTF_CSRF_TIME_LIMIT=3600,
+        REMEMBER_COOKIE_DURATION=timedelta(days=30),
         SESSION_COOKIE_HTTPONLY=True,
         SESSION_COOKIE_SAMESITE='Lax',
         REMEMBER_COOKIE_HTTPONLY=True,

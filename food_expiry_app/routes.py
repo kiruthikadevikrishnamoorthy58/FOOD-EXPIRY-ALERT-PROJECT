@@ -71,15 +71,10 @@ def logout():
 
 @main_bp.route('/')
 def landing():
-    stats = None
     if current_user.is_authenticated:
-        products = Product.query.filter_by(user_id=current_user.id).all()
-        stats = {
-            'total': len(products),
-            'fresh': sum(1 for product in products if get_expiry_status(product.expiry_date)['label'] == 'Within Date'),
-            'soon': sum(1 for product in products if get_expiry_status(product.expiry_date)['label'] == 'Expiring Soon'),
-            'expired': sum(1 for product in products if get_expiry_status(product.expiry_date)['label'] == 'Expired'),
-        }
+        return redirect(url_for('main.dashboard'))
+
+    stats = None
     return render_template('landing.html', stats=stats)
 
 
@@ -220,7 +215,8 @@ def verify_scan():
 
         if action == 'rescan':
             session.pop('pending_scan', None)
-            return redirect(url_for('main.scan_product'))
+            session.modified = True
+            return redirect(url_for('main.scan_product'), code=303)
 
     return render_template('scanner/verify_scan.html', pending=pending)
 

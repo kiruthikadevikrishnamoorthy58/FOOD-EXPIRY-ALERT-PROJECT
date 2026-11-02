@@ -17,7 +17,7 @@ A Flask-based food inventory and expiry tracking web app built for the capstone 
 - Browser reminder tones with selectable sound and volume; start and acknowledge sounds on the reminders page (no background-alert service)
 - Responsive food-tech interface with user-specific dashboard summaries and inventory chart
 - Settings page for alert preferences
-- SQLite database for local development
+- SQLite database for local development, PostgreSQL for Render deployment
 - Lightweight HTML/CSS templates with responsive layout
 
 ## Tech Stack
@@ -69,11 +69,11 @@ The repository includes a Render Blueprint (`render.yaml`) and a Dockerfile that
 3. Connect the GitHub repository containing this project and deploy the blueprint.
 4. Wait for the image build and health check to succeed. Render provides the public `https://…onrender.com` address and manages its trusted TLS certificate.
 
-The blueprint sets `APP_ENV=production`, generates a strong secret key, and trusts the single Render proxy for the forwarded HTTPS scheme. The app marks session cookies secure, redirects HTTP to HTTPS, and sends an HSTS header.
+The blueprint sets `APP_ENV=production`, generates a strong secret key, connects the web service to PostgreSQL, and sends an HSTS header. Sign-up logs users in immediately. A signed Flask-Login remember cookie keeps them signed in for 30 days across browser restarts; logging out clears it. JWT is not used because this is a server-rendered website, not a token-authenticated API.
 
 On the scan page, choose **Open Camera** and allow camera permission in your browser. The browser only provides camera access on HTTPS (or localhost during development). On a phone the app requests the rear-facing camera when available. If camera access is blocked or unavailable, use **Or upload an image** instead.
 
-**Free prototype limitations:** the free web service can sleep when idle, and its filesystem is ephemeral. This setup uses SQLite, so user accounts and inventory can be lost when the service restarts or redeploys. Use a persistent database and storage plan before relying on saved data. Do not upload sensitive or important data to the prototype.
+**Free prototype limitations:** the free web service can sleep when idle, and its filesystem is ephemeral. PostgreSQL keeps accounts and inventory when the web service sleeps or redeploys, but Render's free Postgres database expires after 30 days. Export or back up data and upgrade to a paid database before that deadline if you need it long-term. Do not use the free prototype for important or sensitive data.
 
 For hosted use, set `DATABASE_URL` to a persistent database supplied by your hosting provider. Without persistent database storage, a host restart or redeploy can remove saved accounts, and users may then need to register again.
 
