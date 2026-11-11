@@ -13,6 +13,8 @@
     const zoomControls = document.getElementById('camera-zoom-controls');
     const zoomInput = document.getElementById('camera-zoom');
     const zoomValue = document.getElementById('camera-zoom-value');
+    const cameraFrame = video?.closest('.camera-frame');
+    const cameraStatusText = document.getElementById('camera-scan-status-text');
     const processingIndicator = document.getElementById('processing-indicator');
     const processLabel = document.querySelector('.scan-submit-label');
     let stream = null;
@@ -20,9 +22,15 @@
 
     if (!form || !openButton || !captureButton || !retakeButton || !video
         || !capturedPreview || !canvas || !fileInput || !message || !placeholder
-        || !zoomControls || !zoomInput || !zoomValue) {
+        || !zoomControls || !zoomInput || !zoomValue || !cameraFrame || !cameraStatusText) {
         return;
     }
+
+    const setCameraState = (state, label) => {
+        cameraFrame.classList.toggle('is-live', state === 'live');
+        cameraFrame.classList.toggle('is-reading', state === 'reading');
+        cameraStatusText.textContent = label;
+    };
 
     const stopCamera = () => {
         if (stream) {
@@ -30,12 +38,30 @@
             stream = null;
         }
         video.srcObject = null;
+        if (!cameraFrame.classList.contains('is-reading')) {
+            setCameraState('off', 'Camera off');
+        }
     };
 
     const setZoom = () => {
         const zoom = Number(zoomInput.value);
         video.style.transform = `scale(${zoom})`;
         zoomValue.value = `${zoom.toFixed(1)}×`;
+    };
+
+    const focusCamera = async () => {
+        const track = stream?.getVideoTracks()[0];
+        const focusModes = track?.getCapabilities?.().focusMode || [];
+        try {
+            if (focusModes.includes('single-shot')) {
+                await track.applyConstraints({ advanced: [{ focusMode: 'single-shot' }] });
+            } else if (focusModes.includes('continuous')) {
+                await track.applyConstraints({ advanced: [{ focusMode: 'continuous' }] });
+            }
+        } catch (focusError) {
+            console.warn('Camera autofocus adjustment was not available.', focusError);
+        }
+        await new Promise((resolve) => window.setTimeout(resolve, 500));
     };
 
     const openCamera = async () => {
@@ -51,6 +77,7 @@
         captureButton.hidden = true;
         retakeButton.hidden = true;
         zoomControls.hidden = true;
+        setCameraState('off', 'Requesting camera');
         zoomInput.value = '1';
         setZoom();
         message.textContent = 'Requesting camera permission…';
@@ -87,14 +114,26 @@
                     console.warn('Could not set the camera hardware zoom to 1x.', zoomError);
                 }
             }
+            const focusModes = track.getCapabilities?.().focusMode || [];
+            if (focusModes.includes('continuous')) {
+                try {
+                    await track.applyConstraints({ advanced: [{ focusMode: 'continuous' }] });
+                } catch (focusError) {
+                    console.warn('Could not enable continuous camera autofocus.', focusError);
+                }
+            }
             video.srcObject = stream;
             await video.play();
             captureButton.hidden = false;
             zoomControls.hidden = false;
             setZoom();
-            message.textContent = 'Camera is ready. Center the expiry label and capture a clear photo.';
+            setCameraState('live', 'CAMERA LIVE · ALIGN DATE');
+            message.textContent = focusModes.length
+                ? 'Autofocus is on. Tap the date in the preview, wait for focus, then capture.'
+                : 'Center the date in the preview, hold the camera steady, then capture.';
         } catch (cameraError) {
             stopCamera();
+            setCameraState('off', 'Camera unavailable');
             video.hidden = true;
             placeholder.hidden = false;
             const messages = {
@@ -112,16 +151,27 @@
 
     zoomInput.addEventListener('input', setZoom);
 
-    captureButton.addEventListener('click', () => {
+    video.addEventListener('click', () => {
+        focusCamera().then(() => {
+            message.textContent = 'Focused. Capture the date when it looks sharp.';
+        });
+    });
+
+    captureButton.addEventListener('click', async () => {
         if (!video.videoWidth || !video.videoHeight) {
             message.textContent = 'The camera is not ready yet. Please wait a moment and try again.';
             return;
         }
+        captureButton.disabled = true;
+        message.textContent = 'Focusing camera… hold still.';
+        await focusCamera();
         canvas.width = video.videoWidth;
         canvas.height = video.videoHeight;
         const context = canvas.getContext('2d');
         if (!context) {
+            captureButton.disabled = false;
             message.textContent = 'Could not capture the image. Please upload a photo instead.';
+            setCameraState('live', 'CAMERA LIVE · ALIGN DATE');
             return;
         }
         const zoom = Number(zoomInput.value);
@@ -140,7 +190,9 @@
         );
         canvas.toBlob((blob) => {
             if (!blob) {
+                captureButton.disabled = false;
                 message.textContent = 'Could not create the photo. Please try again or upload an image.';
+                setCameraState('live', 'CAMERA LIVE · ALIGN DATE');
                 return;
             }
             capturedFile = new File([blob], 'camera-capture.jpg', { type: 'image/jpeg' });
@@ -149,10 +201,12 @@
             video.hidden = true;
             placeholder.hidden = true;
             captureButton.hidden = true;
+            captureButton.disabled = false;
             retakeButton.hidden = false;
             zoomControls.hidden = true;
-            message.textContent = 'Photo captured. Process scan to read the expiry label.';
             stopCamera();
+            setCameraState('off', 'PHOTO READY · TAP SCAN DATE');
+            message.textContent = 'Photo captured. Process scan to read the expiry label.';
         }, 'image/jpeg', 0.92);
     });
 
@@ -160,13 +214,16 @@
     fileInput.addEventListener('change', () => {
         if (fileInput.files.length) {
             capturedFile = null;
+            capturedPreview.src = URL.createObjectURL(fileInput.files[0]);
             capturedPreview.hidden = true;
             stopCamera();
             video.hidden = true;
+            capturedPreview.hidden = false;
             placeholder.hidden = true;
             captureButton.hidden = true;
             retakeButton.hidden = true;
             zoomControls.hidden = true;
+            setCameraState('off', 'PHOTO READY · TAP SCAN DATE');
             message.textContent = `Selected ${fileInput.files[0].name}. Process scan to read it.`;
         }
     });
@@ -177,15 +234,20 @@
                 return;
             }
         } else {
-            event.preventDefault();
             const transfer = new DataTransfer();
             transfer.items.add(capturedFile);
             fileInput.files = transfer.files;
-            form.submit();
+        }
+
+        if (fileInput.files.length) {
+            setCameraState('reading', 'READING PHOTO · PLEASE WAIT');
+            message.textContent = 'Reading the expiry date from your photo…';
+            processLabel.textContent = 'Reading date...';
+        } else {
+            processLabel.textContent = 'Preparing verification...';
         }
 
         processButton.disabled = true;
-        processLabel.textContent = 'Preparing verification...';
         processingIndicator.hidden = false;
     });
 

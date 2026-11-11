@@ -126,18 +126,18 @@ def scan_product():
             os.makedirs(upload_dir, exist_ok=True)
             uploaded_path = os.path.join(upload_dir, filename)
             uploaded.save(uploaded_path)
-            ocr_error = False
+            scan_error = None
             try:
                 ocr_text = extract_ocr_text_from_image(uploaded_path)
             except OCRProcessingError as error:
                 current_app.logger.exception('OCR processing failed for uploaded scan')
                 ocr_text = ''
-                ocr_error = True
-                flash(str(error), 'warning')
+                scan_error = str(error)
             expiry_date = find_best_expiry_date(ocr_text)
             session['pending_scan'] = {
                 'ocr_text': ocr_text,
                 'expiry_date': expiry_date.isoformat() if expiry_date else None,
+                'scan_error': scan_error,
                 'product_name': request.form.get('product_name', '').strip() or 'Unknown product',
                 'category': request.form.get('category', 'General').strip() or 'General',
                 'storage_location': request.form.get('storage_location', '').strip(),
@@ -145,8 +145,6 @@ def scan_product():
             }
             if expiry_date:
                 flash('Please verify the expiry date detected by the system. Is this date correct?', 'info')
-            elif not ocr_error:
-                flash('No valid expiry date was detected. Please review the text and correct it manually.', 'warning')
             return redirect(url_for('main.verify_scan'))
 
         manual_date = request.form.get('manual_date')

@@ -28,8 +28,13 @@
                 <div class="camera-placeholder" id="camera-placeholder">
                     <span aria-hidden="true">🥫</span>
                     <strong>Your label goes here</strong>
-                    <small>Center the printed date inside the frame</small>
+                    <small>Tap the date to focus, then hold still to capture</small>
                 </div>
+                <div class="camera-scan-status" id="camera-scan-status" role="status" aria-live="polite">
+                    <span class="camera-status-dot" aria-hidden="true"></span>
+                    <span id="camera-scan-status-text">Camera off</span>
+                </div>
+                <span class="camera-scan-line" id="camera-scan-line" aria-hidden="true"></span>
                 <span class="scan-corner corner-tl" aria-hidden="true"></span><span class="scan-corner corner-tr" aria-hidden="true"></span>
                 <span class="scan-corner corner-bl" aria-hidden="true"></span><span class="scan-corner corner-br" aria-hidden="true"></span>
             </div>

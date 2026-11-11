@@ -8,7 +8,7 @@
         <p>We read the date below. Is it correct? Check the package, edit the date if needed, and confirm before saving.</p>
     </header>
     {% if not pending.expiry_date %}
-    <div class="scan-warning" role="alert"><span aria-hidden="true">⚠️</span><div><strong>We couldn't confidently read an expiry date.</strong><p>Please enter the date from the package before confirming.</p></div></div>
+    <div class="scan-warning" role="alert"><span aria-hidden="true">⚠️</span><div><strong>{{ pending.scan_error or "We couldn't confidently read an expiry date." }}</strong><p>{% if pending.scan_error %}Try a sharper, well-lit photo, or enter the date from the package below.{% else %}Please enter the date from the package below before confirming.{% endif %}</p></div></div>
     {% elif edit_mode %}
     <div class="scan-notice"><span aria-hidden="true">✏️</span> Update the date below, then choose “Review updated date” to verify it.</div>
     {% else %}

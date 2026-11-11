@@ -221,6 +221,9 @@ def test_all_authenticated_pages_render_with_dashboard_data():
     ):
         response = client.get(path)
         assert response.status_code == 200, path
+        if path == '/scan':
+            assert b'id="camera-scan-line"' in response.data
+            assert b'id="camera-scan-status-text">Camera off' in response.data
 
 
 def test_manual_scan_requires_review_before_saving_and_supports_date_edit():
@@ -331,6 +334,8 @@ def test_image_ocr_result_is_reviewed_before_it_is_saved(monkeypatch, tmp_path):
     assert b'name="expiry_date"' in verify_page.data
     assert b'readonly' not in verify_page.data
     assert b'Please compare it with the package.' in verify_page.data
+    assert b'class="flash flash-warning"' not in verify_page.data
+    assert verify_page.data.count(b'class="scan-warning"') == 0
     with app.app_context():
         assert Product.query.filter_by(product_name='Cereal').count() == 0
 
@@ -364,15 +369,27 @@ def test_ocr_tries_multiple_image_reading_modes_and_ignores_manufacture_date(mon
 
     text = extract_ocr_text_from_image(str(image_path))
 
-    assert len(calls) == 2
+    assert len(calls) == 4
     assert pytesseract.pytesseract.tesseract_cmd == 'test-tesseract'
     assert '--psm 6' in calls[0]
     assert '--psm 11' in calls[1]
+    assert '--psm 11' in calls[2]
+    assert '--psm 7' in calls[3]
     assert find_best_expiry_date(text) == date(2030, 6, 11)
 
 
 def test_ocr_parses_month_year_expiry_as_last_day_of_month():
     assert find_best_expiry_date('BEST BEFORE 06/2030') == date(2030, 6, 30)
+
+
+@pytest.mark.parametrize(('text', 'expected'), [
+    ('EXP 31/12/2026', date(2026, 12, 31)),
+    ('EXP 12/31/2026', date(2026, 12, 31)),
+    ('EXP 31.12.26', date(2026, 12, 31)),
+    ('EXP 12/31/26', date(2026, 12, 31)),
+])
+def test_ocr_parses_common_numeric_expiry_formats(text, expected):
+    assert find_best_expiry_date(text) == expected
 
 
 def test_ocr_engine_error_is_shown_and_manual_date_remains_available(monkeypatch, tmp_path):
@@ -398,6 +415,8 @@ def test_ocr_engine_error_is_shown_and_manual_date_remains_available(monkeypatch
 
     assert response.status_code == 200
     assert b'The OCR engine is unavailable. Enter the date manually.' in response.data
+    assert b'class="scan-warning"' in response.data
+    assert b'class="flash flash-warning"' not in response.data
     assert b'name="expiry_date"' in response.data
     assert b'Confirm entered date' in response.data
 

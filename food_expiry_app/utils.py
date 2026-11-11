@@ -40,6 +40,21 @@ def parse_date(value):
     text = str(value).strip()
     if not text:
         return None
+    numeric_date = re.fullmatch(
+        r'(\d{1,2})\s*[./-]\s*(\d{1,2})\s*[./-]\s*(\d{2,4})',
+        text,
+    )
+    if numeric_date:
+        first, second, raw_year = numeric_date.groups()
+        year = int(raw_year)
+        if len(raw_year) == 2:
+            year += 2000
+        for month, day in ((int(second), int(first)), (int(first), int(second))):
+            try:
+                return date(year, month, day)
+            except ValueError:
+                continue
+        return None
     patterns = [
         '%Y-%m-%d', '%d/%m/%Y', '%d-%m-%Y', '%m/%d/%Y', '%m-%d-%Y',
         '%d.%m.%Y', '%d %B %Y', '%d %b %Y', '%B %d, %Y', '%b %d, %Y',
@@ -78,9 +93,24 @@ def extract_ocr_text_from_image(file_path):
         grayscale = ImageOps.autocontrast(image.convert('L'))
         enhanced = ImageEnhance.Contrast(grayscale).enhance(1.7).filter(ImageFilter.SHARPEN)
         thresholded = enhanced.point(lambda pixel: 255 if pixel > 160 else 0)
+        center = enhanced.crop((
+            round(enhanced.width * 0.08),
+            round(enhanced.height * 0.25),
+            round(enhanced.width * 0.92),
+            round(enhanced.height * 0.75),
+        ))
+        center = center.resize(
+            (center.width * 2, center.height * 2),
+            Image.Resampling.LANCZOS,
+        )
         results = [
             pytesseract.image_to_string(enhanced, config='--oem 3 --psm 6'),
+            pytesseract.image_to_string(enhanced, config='--oem 3 --psm 11'),
             pytesseract.image_to_string(thresholded, config='--oem 3 --psm 11'),
+            pytesseract.image_to_string(
+                center,
+                config='--oem 3 --psm 7 -c tessedit_char_whitelist=0123456789/.-ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz',
+            ),
         ]
         return '\n'.join(dict.fromkeys(text.strip() for text in results if text.strip()))
     except pytesseract.TesseractNotFoundError as error:
@@ -107,8 +137,8 @@ def find_best_expiry_date(text):
     if not match:
         match = normalized
     date_patterns = [
-        r'\b\d{1,2}[/-]\d{1,2}[/-]\d{2,4}\b',
-        r'\b\d{4}[/-]\d{1,2}[/-]\d{1,2}\b',
+        r'\b\d{1,2}\s*[./-]\s*\d{1,2}\s*[./-]\s*\d{2,4}\b',
+        r'\b\d{4}\s*[./-]\s*\d{1,2}\s*[./-]\s*\d{1,2}\b',
         r'\b\d{1,2}\s+(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s+\d{2,4}\b',
         r'\b(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s+\d{1,2},\s*\d{2,4}\b',
     ]
@@ -120,11 +150,13 @@ def find_best_expiry_date(text):
                 if parsed:
                     return parsed
     month_year = re.search(
-        r'\b(0?[1-9]|1[0-2])\s*[/-]\s*(20\d{2})\b',
+        r'\b(0?[1-9]|1[0-2])\s*[./-]\s*(\d{2}|20\d{2})\b',
         match,
     )
     if month_year:
         year, month = int(month_year.group(2)), int(month_year.group(1))
+        if year < 100:
+            year += 2000
         return date(year, month, calendar.monthrange(year, month)[1])
     named_month_year = re.search(
         r'\b(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s+(20\d{2})\b',
