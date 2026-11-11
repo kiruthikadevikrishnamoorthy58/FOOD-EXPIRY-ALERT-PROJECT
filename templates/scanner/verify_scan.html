@@ -25,7 +25,8 @@
         <div class="field">
             <label for="expiry_date">Expiry date</label>
             <input type="date" id="expiry_date" name="expiry_date" value="{{ pending.expiry_date or '' }}" required>
-            <small class="field-hint">The detected date is editable. Compare it with the package before confirming.</small>
+            {% if pending.expiry_date %}<output class="detected-date-readout" aria-live="polite">Scanned date: {{ pending.expiry_date[8:10] }}/{{ pending.expiry_date[5:7] }}/{{ pending.expiry_date[:4] }}</output>{% endif %}
+            <small class="field-hint">{% if pending.expiry_date %}Is this scanned date correct? Edit it above if needed, then confirm.{% else %}Enter the expiry date from the package above before confirming.{% endif %}</small>
         </div>
         <div class="field">
             <label for="category">Category</label>
@@ -55,7 +56,7 @@
             <button class="btn btn-secondary" type="submit" name="action" value="edit">Edit Date</button>
             {% endif %}
             {% endif %}
-            <button class="btn btn-outline-danger" type="submit" name="action" value="rescan">Re-scan</button>
+            <button class="btn btn-outline-danger" type="submit" name="action" value="rescan" formnovalidate>Re-scan</button>
         </div>
     </form>
 </div>

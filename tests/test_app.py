@@ -333,6 +333,7 @@ def test_image_ocr_result_is_reviewed_before_it_is_saved(monkeypatch, tmp_path):
     assert b'2030-06-11' in verify_page.data
     assert b'name="expiry_date"' in verify_page.data
     assert b'readonly' not in verify_page.data
+    assert b'Scanned date: 11/06/2030' in verify_page.data
     assert b'Please compare it with the package.' in verify_page.data
     assert b'class="flash flash-warning"' not in verify_page.data
     assert verify_page.data.count(b'class="scan-warning"') == 0
@@ -350,7 +351,7 @@ def test_image_ocr_result_is_reviewed_before_it_is_saved(monkeypatch, tmp_path):
         assert Product.query.filter_by(product_name='Cereal').count() == 1
 
 
-def test_ocr_tries_multiple_image_reading_modes_and_ignores_manufacture_date(monkeypatch, tmp_path):
+def test_ocr_stops_after_first_pass_finds_expiry_date(monkeypatch, tmp_path):
     image_path = tmp_path / 'label.png'
     Image.new('RGB', (40, 20), color='white').save(image_path)
     calls = []
@@ -361,25 +362,55 @@ def test_ocr_tries_multiple_image_reading_modes_and_ignores_manufacture_date(mon
         pytesseract.pytesseract.tesseract_cmd,
     )
 
-    def fake_ocr(_image, config):
+    def fake_ocr(_image, config, timeout):
         calls.append(config)
-        return 'MFG 2030-01-01 EXP 2030-06-11' if len(calls) == 1 else ''
+        assert timeout == 6
+        return 'EXP 2030-06-11'
 
     monkeypatch.setattr('food_expiry_app.utils.pytesseract.image_to_string', fake_ocr)
 
     text = extract_ocr_text_from_image(str(image_path))
 
-    assert len(calls) == 4
+    assert len(calls) == 1
     assert pytesseract.pytesseract.tesseract_cmd == 'test-tesseract'
     assert '--psm 6' in calls[0]
-    assert '--psm 11' in calls[1]
-    assert '--psm 11' in calls[2]
-    assert '--psm 7' in calls[3]
     assert find_best_expiry_date(text) == date(2030, 6, 11)
+
+
+def test_ocr_uses_fallback_mode_only_when_first_pass_misses_date(monkeypatch, tmp_path):
+    image_path = tmp_path / 'label.png'
+    Image.new('RGB', (40, 20), color='white').save(image_path)
+    calls = []
+
+    def fake_ocr(_image, config, timeout):
+        calls.append(config)
+        assert timeout == 6
+        return '' if len(calls) == 1 else 'BEST BEFORE 31/12/2030'
+
+    monkeypatch.setattr('food_expiry_app.utils.pytesseract.image_to_string', fake_ocr)
+
+    text = extract_ocr_text_from_image(str(image_path))
+
+    assert len(calls) == 2
+    assert '--psm 6' in calls[0]
+    assert '--psm 6' in calls[1]
+    assert find_best_expiry_date(text) == date(2030, 12, 31)
 
 
 def test_ocr_parses_month_year_expiry_as_last_day_of_month():
     assert find_best_expiry_date('BEST BEFORE 06/2030') == date(2030, 6, 30)
+
+
+def test_ocr_prefers_expiry_date_over_manufacturing_date():
+    assert find_best_expiry_date('MFG 28/07/26\nEXP 25/12/26') == date(2026, 12, 25)
+
+
+def test_ocr_without_expiry_label_prefers_latest_printed_date():
+    assert find_best_expiry_date('28/07/26\n25/12/26') == date(2026, 12, 25)
+
+
+def test_ocr_does_not_invent_date_from_unseparated_numbers():
+    assert find_best_expiry_date('MRP 5.00 USP 0.15 1826') is None
 
 
 @pytest.mark.parametrize(('text', 'expected'), [
@@ -387,9 +418,15 @@ def test_ocr_parses_month_year_expiry_as_last_day_of_month():
     ('EXP 12/31/2026', date(2026, 12, 31)),
     ('EXP 31.12.26', date(2026, 12, 31)),
     ('EXP 12/31/26', date(2026, 12, 31)),
+    ('EXP 3I/12/2O26', date(2026, 12, 31)),
+    ('BEST BEFORE 31 12 2026', date(2026, 12, 31)),
 ])
 def test_ocr_parses_common_numeric_expiry_formats(text, expected):
     assert find_best_expiry_date(text) == expected
+
+
+def test_ocr_still_parses_iso_date_format():
+    assert find_best_expiry_date('EXP 2030-06-11') == date(2030, 6, 11)
 
 
 def test_ocr_engine_error_is_shown_and_manual_date_remains_available(monkeypatch, tmp_path):
@@ -418,6 +455,7 @@ def test_ocr_engine_error_is_shown_and_manual_date_remains_available(monkeypatch
     assert b'class="scan-warning"' in response.data
     assert b'class="flash flash-warning"' not in response.data
     assert b'name="expiry_date"' in response.data
+    assert b'name="action" value="rescan" formnovalidate' in response.data
     assert b'Confirm entered date' in response.data
 
 
