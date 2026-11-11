@@ -5,7 +5,7 @@
     <header class="page-intro">
         <p class="eyebrow eyebrow-soft">One last check</p>
         <h1>Review your <span>scan.</span></h1>
-        <p>OCR can make mistakes. Check the package and confirm the details before saving.</p>
+        <p>We read the date below. Is it correct? Check the package, edit the date if needed, and confirm before saving.</p>
     </header>
     {% if not pending.expiry_date %}
     <div class="scan-warning" role="alert"><span aria-hidden="true">⚠️</span><div><strong>We couldn't confidently read an expiry date.</strong><p>Please enter the date from the package before confirming.</p></div></div>
@@ -24,8 +24,8 @@
         </div>
         <div class="field">
             <label for="expiry_date">Expiry date</label>
-            <input type="date" id="expiry_date" name="expiry_date" value="{{ pending.expiry_date or '' }}" {% if pending.expiry_date and not edit_mode %}readonly aria-describedby="date-readonly-hint"{% endif %} required>
-            {% if pending.expiry_date and not edit_mode %}<small id="date-readonly-hint" class="field-hint">Choose “Edit Date” to correct the detected date.</small>{% endif %}
+            <input type="date" id="expiry_date" name="expiry_date" value="{{ pending.expiry_date or '' }}" required>
+            <small class="field-hint">The detected date is editable. Compare it with the package before confirming.</small>
         </div>
         <div class="field">
             <label for="category">Category</label>
@@ -50,8 +50,10 @@
             {% if edit_mode %}
             <button class="btn btn-primary" type="submit" name="action" value="update-date">Review updated date <span aria-hidden="true">→</span></button>
             {% else %}
-            <button class="btn btn-primary" type="submit" name="action" value="save">OK — Correct <span aria-hidden="true">✓</span></button>
+            <button class="btn btn-primary" type="submit" name="action" value="save">{% if pending.expiry_date %}Yes — date is correct{% else %}Confirm entered date{% endif %} <span aria-hidden="true">✓</span></button>
+            {% if pending.expiry_date %}
             <button class="btn btn-secondary" type="submit" name="action" value="edit">Edit Date</button>
+            {% endif %}
             {% endif %}
             <button class="btn btn-outline-danger" type="submit" name="action" value="rescan">Re-scan</button>
         </div>

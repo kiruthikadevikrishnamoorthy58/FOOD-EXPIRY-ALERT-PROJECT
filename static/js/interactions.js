@@ -35,7 +35,7 @@
             oscillator.type = sound === 'ding' ? 'sine' : 'triangle';
             oscillator.frequency.setValueAtTime(frequency, start);
             gain.gain.setValueAtTime(0.0001, start);
-            gain.gain.exponentialRampToValueAtTime(Math.min(volume, 1) * 0.16, start + 0.025);
+            gain.gain.exponentialRampToValueAtTime(Math.min(volume, 1) * 0.8, start + 0.025);
             gain.gain.exponentialRampToValueAtTime(0.0001, start + 0.42);
             oscillator.connect(gain);
             gain.connect(context.destination);

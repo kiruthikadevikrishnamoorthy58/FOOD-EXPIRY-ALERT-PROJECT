@@ -49,5 +49,5 @@ class AlertSettings(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
     sound_choice = db.Column(db.String(50), default='bell')
-    volume = db.Column(db.Float, default=0.5)
+    volume = db.Column(db.Float, default=0.8)
     enabled = db.Column(db.Boolean, default=True)

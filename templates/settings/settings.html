@@ -86,7 +86,7 @@
                 <div class="field">
                     {{ alert_form.volume.label }}
                     {{ alert_form.volume(type='range', min='0', max='1', step='0.05', id='alert-volume') }}
-                    <div class="volume-hint"><span>Quiet</span><output id="volume-value">{{ ((alert_form.volume.data if alert_form.volume.data is not none else 0.5) * 100)|int }}%</output><span>Gentle</span></div>
+                    <div class="volume-hint"><span>Quiet</span><output id="volume-value">{{ ((alert_form.volume.data if alert_form.volume.data is not none else 0.8) * 100)|int }}%</output><span>Loud</span></div>
                 </div>
                 <div class="field checkbox-row">
                     {{ alert_form.enabled }}

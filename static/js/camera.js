@@ -10,13 +10,17 @@
     const fileInput = document.getElementById('image');
     const message = document.getElementById('camera-message');
     const placeholder = document.getElementById('camera-placeholder');
+    const zoomControls = document.getElementById('camera-zoom-controls');
+    const zoomInput = document.getElementById('camera-zoom');
+    const zoomValue = document.getElementById('camera-zoom-value');
     const processingIndicator = document.getElementById('processing-indicator');
     const processLabel = document.querySelector('.scan-submit-label');
     let stream = null;
     let capturedFile = null;
 
     if (!form || !openButton || !captureButton || !retakeButton || !video
-        || !capturedPreview || !canvas || !fileInput || !message || !placeholder) {
+        || !capturedPreview || !canvas || !fileInput || !message || !placeholder
+        || !zoomControls || !zoomInput || !zoomValue) {
         return;
     }
 
@@ -26,6 +30,12 @@
             stream = null;
         }
         video.srcObject = null;
+    };
+
+    const setZoom = () => {
+        const zoom = Number(zoomInput.value);
+        video.style.transform = `scale(${zoom})`;
+        zoomValue.value = `${zoom.toFixed(1)}×`;
     };
 
     const openCamera = async () => {
@@ -40,13 +50,20 @@
         placeholder.hidden = true;
         captureButton.hidden = true;
         retakeButton.hidden = true;
+        zoomControls.hidden = true;
+        zoomInput.value = '1';
+        setZoom();
         message.textContent = 'Requesting camera permission…';
 
         try {
             try {
                 stream = await navigator.mediaDevices.getUserMedia({
                     audio: false,
-                    video: { facingMode: { ideal: 'environment' } }
+                    video: {
+                        facingMode: { ideal: 'environment' },
+                        width: { ideal: 1920 },
+                        height: { ideal: 1080 },
+                    }
                 });
             } catch (cameraError) {
                 if (cameraError.name === 'NotFoundError'
@@ -59,9 +76,22 @@
                     throw cameraError;
                 }
             }
+            const track = stream.getVideoTracks()[0];
+            const zoomCapabilities = track.getCapabilities?.().zoom;
+            if (zoomCapabilities
+                && zoomCapabilities.min <= 1
+                && zoomCapabilities.max >= 1) {
+                try {
+                    await track.applyConstraints({ advanced: [{ zoom: 1 }] });
+                } catch (zoomError) {
+                    console.warn('Could not set the camera hardware zoom to 1x.', zoomError);
+                }
+            }
             video.srcObject = stream;
             await video.play();
             captureButton.hidden = false;
+            zoomControls.hidden = false;
+            setZoom();
             message.textContent = 'Camera is ready. Center the expiry label and capture a clear photo.';
         } catch (cameraError) {
             stopCamera();
@@ -80,12 +110,13 @@
 
     openButton.addEventListener('click', openCamera);
 
+    zoomInput.addEventListener('input', setZoom);
+
     captureButton.addEventListener('click', () => {
         if (!video.videoWidth || !video.videoHeight) {
             message.textContent = 'The camera is not ready yet. Please wait a moment and try again.';
             return;
         }
-
         canvas.width = video.videoWidth;
         canvas.height = video.videoHeight;
         const context = canvas.getContext('2d');
@@ -93,7 +124,20 @@
             message.textContent = 'Could not capture the image. Please upload a photo instead.';
             return;
         }
-        context.drawImage(video, 0, 0, canvas.width, canvas.height);
+        const zoom = Number(zoomInput.value);
+        const sourceWidth = video.videoWidth / zoom;
+        const sourceHeight = video.videoHeight / zoom;
+        context.drawImage(
+            video,
+            (video.videoWidth - sourceWidth) / 2,
+            (video.videoHeight - sourceHeight) / 2,
+            sourceWidth,
+            sourceHeight,
+            0,
+            0,
+            canvas.width,
+            canvas.height,
+        );
         canvas.toBlob((blob) => {
             if (!blob) {
                 message.textContent = 'Could not create the photo. Please try again or upload an image.';
@@ -106,6 +150,7 @@
             placeholder.hidden = true;
             captureButton.hidden = true;
             retakeButton.hidden = false;
+            zoomControls.hidden = true;
             message.textContent = 'Photo captured. Process scan to read the expiry label.';
             stopCamera();
         }, 'image/jpeg', 0.92);
@@ -121,6 +166,7 @@
             placeholder.hidden = true;
             captureButton.hidden = true;
             retakeButton.hidden = true;
+            zoomControls.hidden = true;
             message.textContent = `Selected ${fileInput.files[0].name}. Process scan to read it.`;
         }
     });

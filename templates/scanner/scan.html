@@ -5,7 +5,7 @@
     <header class="page-intro">
         <p class="eyebrow eyebrow-soft">Your scan station</p>
         <h1>Let's scan something <span>fresh.</span></h1>
-        <p>Point your camera at the printed date. We'll read it, and you'll confirm it before it is saved.</p>
+        <p>Point your camera at the printed date, capture it, then check the date we read before saving.</p>
     </header>
     <div class="scan-layout">
     <section class="card scan-card">
@@ -38,6 +38,11 @@
                 <button class="btn btn-capture" type="button" id="capture-photo" hidden><span aria-hidden="true">◉</span> Capture Photo</button>
                 <button class="btn btn-secondary" type="button" id="retake-photo" hidden>↻ Retake photo</button>
             </div>
+            <div class="camera-zoom-controls" id="camera-zoom-controls" hidden>
+                <label for="camera-zoom">Camera zoom <output id="camera-zoom-value" for="camera-zoom">1.0×</output></label>
+                <input type="range" id="camera-zoom" min="1" max="3" step="0.1" value="1">
+                <small>Starts at 1×. Zoom in only if the date is hard to read.</small>
+            </div>
             <p id="camera-message" class="camera-message" role="status" aria-live="polite">
                 Camera access needs your permission. You can upload a photo instead.
             </p>
@@ -58,9 +63,9 @@
         <div class="field">
         <label for="manual_date">Manual date</label>
         <input type="date" name="manual_date" id="manual_date">
-        <small class="field-hint">Or enter the printed date if you don't have a photo.</small>
+        <small class="field-hint">Or enter the printed date if you don't have a photo or the scan cannot read it.</small>
         </div>
-        <button class="btn btn-primary scan-submit" type="submit" id="process-scan"><span class="scan-submit-label">Read and review date</span><span class="processing-indicator" id="processing-indicator" hidden></span><span aria-hidden="true">→</span></button>
+        <button class="btn btn-primary scan-submit" type="submit" id="process-scan"><span class="scan-submit-label">Scan date and review</span><span class="processing-indicator" id="processing-indicator" hidden></span><span aria-hidden="true">→</span></button>
     </form>
     </section>
     <aside class="scan-side">

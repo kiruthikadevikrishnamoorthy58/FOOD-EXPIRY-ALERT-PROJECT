@@ -1,12 +1,31 @@
+import calendar
 import os
 import re
 from datetime import date, datetime, timedelta
 
 import pytesseract
-from PIL import Image, ImageEnhance, ImageFilter
+from PIL import Image, ImageEnhance, ImageFilter, ImageOps
 
 
-KEYWORDS = ('EXP', 'EXPIRY', 'USE BY', 'USE-BY', 'BEST BEFORE', 'BEST-BEFORE', 'SELL BY', 'PACKED ON', 'MFG', 'MANUFACTURED')
+KEYWORDS = (
+    'EXPIRATION', 'EXPIRY', 'EXP DATE', 'EXP', 'USE BY', 'USE-BY',
+    'BEST BEFORE', 'BEST-BEFORE', 'SELL BY',
+)
+
+
+class OCRProcessingError(Exception):
+    pass
+
+
+def configure_tesseract():
+    command = os.getenv('TESSERACT_CMD', 'tesseract').strip() or 'tesseract'
+    if command.lower() == 'tesseract' and os.name == 'nt':
+        windows_paths = (
+            r'C:\Program Files\Tesseract-OCR\tesseract.exe',
+            r'C:\Program Files (x86)\Tesseract-OCR\tesseract.exe',
+        )
+        command = next((path for path in windows_paths if os.path.isfile(path)), command)
+    pytesseract.pytesseract.tesseract_cmd = command
 
 
 def normalize_email(value):
@@ -45,18 +64,33 @@ def get_expiry_status(expiry_date):
 
 def extract_ocr_text_from_image(file_path):
     if not os.path.exists(file_path):
-        return ''
+        raise OCRProcessingError('The uploaded image could not be found. Please take another photo.')
     try:
-        image = Image.open(file_path)
-        image = image.convert('RGB')
-        image = image.resize((image.width * 2, image.height * 2))
-        image = image.convert('L')
-        image = ImageEnhance.Contrast(image).enhance(2.0)
-        image = image.filter(ImageFilter.SHARPEN)
-        text = pytesseract.image_to_string(image, config='--psm 6')
-        return text
-    except Exception:
-        return ''
+        configure_tesseract()
+        with Image.open(file_path) as source:
+            image = ImageOps.exif_transpose(source).convert('RGB')
+        scale = min(3, max(1, 1800 / image.width))
+        if scale > 1:
+            image = image.resize(
+                (round(image.width * scale), round(image.height * scale)),
+                Image.Resampling.LANCZOS,
+            )
+        grayscale = ImageOps.autocontrast(image.convert('L'))
+        enhanced = ImageEnhance.Contrast(grayscale).enhance(1.7).filter(ImageFilter.SHARPEN)
+        thresholded = enhanced.point(lambda pixel: 255 if pixel > 160 else 0)
+        results = [
+            pytesseract.image_to_string(enhanced, config='--oem 3 --psm 6'),
+            pytesseract.image_to_string(thresholded, config='--oem 3 --psm 11'),
+        ]
+        return '\n'.join(dict.fromkeys(text.strip() for text in results if text.strip()))
+    except pytesseract.TesseractNotFoundError as error:
+        raise OCRProcessingError(
+            'The OCR engine is unavailable. Enter the date manually or install Tesseract OCR.'
+        ) from error
+    except (OSError, ValueError, pytesseract.TesseractError) as error:
+        raise OCRProcessingError(
+            'The photo could not be read. Try a brighter, sharper photo or enter the date manually.'
+        ) from error
 
 
 def find_best_expiry_date(text):
@@ -64,13 +98,12 @@ def find_best_expiry_date(text):
         return None
     normalized = text.replace('\n', ' ')
     lower = normalized.lower()
-    match = None
-    for keyword in KEYWORDS:
-        idx = lower.find(keyword.lower())
-        if idx != -1:
-            tail = normalized[idx:idx + 250]
-            match = tail
-            break
+    keyword_matches = [
+        (lower.find(keyword.lower()), keyword)
+        for keyword in KEYWORDS
+        if lower.find(keyword.lower()) != -1
+    ]
+    match = normalized[min(keyword_matches)[0]:min(keyword_matches)[0] + 250] if keyword_matches else None
     if not match:
         match = normalized
     date_patterns = [
@@ -86,4 +119,20 @@ def find_best_expiry_date(text):
                 parsed = parse_date(value)
                 if parsed:
                     return parsed
+    month_year = re.search(
+        r'\b(0?[1-9]|1[0-2])\s*[/-]\s*(20\d{2})\b',
+        match,
+    )
+    if month_year:
+        year, month = int(month_year.group(2)), int(month_year.group(1))
+        return date(year, month, calendar.monthrange(year, month)[1])
+    named_month_year = re.search(
+        r'\b(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s+(20\d{2})\b',
+        match,
+        flags=re.IGNORECASE,
+    )
+    if named_month_year:
+        month = datetime.strptime(named_month_year.group(1)[:3].title(), '%b').month
+        year = int(named_month_year.group(2))
+        return date(year, month, calendar.monthrange(year, month)[1])
     return None

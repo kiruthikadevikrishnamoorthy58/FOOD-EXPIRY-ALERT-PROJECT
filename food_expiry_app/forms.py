@@ -39,5 +39,5 @@ class ProductForm(FlaskForm):
 
 class AlertSettingsForm(FlaskForm):
     sound_choice = SelectField('Sound', choices=[('bell', 'Bell'), ('ding', 'Ding'), ('chime', 'Chime')])
-    volume = FloatField('Volume', default=0.5)
+    volume = FloatField('Volume', default=0.8)
     enabled = BooleanField('Enable alerts')

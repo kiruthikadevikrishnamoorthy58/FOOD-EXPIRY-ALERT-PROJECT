@@ -9,7 +9,7 @@ from werkzeug.utils import secure_filename
 from . import db, login_manager
 from .forms import AccountProfileForm, AlertSettingsForm, LoginForm, ProductForm, SignupForm
 from .models import AlertSettings, Product, User
-from .utils import extract_ocr_text_from_image, find_best_expiry_date, get_expiry_status, normalize_email, parse_date
+from .utils import OCRProcessingError, extract_ocr_text_from_image, find_best_expiry_date, get_expiry_status, normalize_email, parse_date
 
 
 auth_bp = Blueprint('auth', __name__)
@@ -126,7 +126,14 @@ def scan_product():
             os.makedirs(upload_dir, exist_ok=True)
             uploaded_path = os.path.join(upload_dir, filename)
             uploaded.save(uploaded_path)
-            ocr_text = extract_ocr_text_from_image(uploaded_path)
+            ocr_error = False
+            try:
+                ocr_text = extract_ocr_text_from_image(uploaded_path)
+            except OCRProcessingError as error:
+                current_app.logger.exception('OCR processing failed for uploaded scan')
+                ocr_text = ''
+                ocr_error = True
+                flash(str(error), 'warning')
             expiry_date = find_best_expiry_date(ocr_text)
             session['pending_scan'] = {
                 'ocr_text': ocr_text,
@@ -138,7 +145,7 @@ def scan_product():
             }
             if expiry_date:
                 flash('Please verify the expiry date detected by the system. Is this date correct?', 'info')
-            else:
+            elif not ocr_error:
                 flash('No valid expiry date was detected. Please review the text and correct it manually.', 'warning')
             return redirect(url_for('main.verify_scan'))
 
@@ -290,7 +297,7 @@ def delete_product(product_id):
 def settings():
     settings_record = AlertSettings.query.filter_by(user_id=current_user.id).first()
     if settings_record is None:
-        settings_record = AlertSettings(user_id=current_user.id, sound_choice='bell', volume=0.5, enabled=True)
+        settings_record = AlertSettings(user_id=current_user.id, sound_choice='bell', volume=0.8, enabled=True)
         db.session.add(settings_record)
         db.session.commit()
     alert_form = AlertSettingsForm(obj=settings_record)
@@ -348,7 +355,7 @@ def reminders():
         'alerts/reminders.html',
         items=items,
         alert_sound=alert_settings.sound_choice if alert_settings else 'bell',
-        alert_volume=alert_settings.volume if alert_settings else 0.5,
+        alert_volume=alert_settings.volume if alert_settings else 0.8,
         alerts_enabled=alert_settings.enabled if alert_settings else True,
     )
 

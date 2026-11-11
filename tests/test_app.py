@@ -3,11 +3,17 @@ from io import BytesIO
 import sqlite3
 
 import pytest
+import pytesseract
 from PIL import Image
 
 from food_expiry_app import create_app, db, normalize_database_url
 from food_expiry_app.models import Product, User
-from food_expiry_app.utils import get_expiry_status
+from food_expiry_app.utils import (
+    OCRProcessingError,
+    extract_ocr_text_from_image,
+    find_best_expiry_date,
+    get_expiry_status,
+)
 
 
 def build_app(database_uri='sqlite://'):
@@ -235,7 +241,7 @@ def test_manual_scan_requires_review_before_saving_and_supports_date_edit():
     assert response.location.endswith('/verify-scan')
     verify_page = client.get('/verify-scan')
     assert verify_page.status_code == 200
-    assert b'OK \xe2\x80\x94 Correct' in verify_page.data
+    assert b'Yes \xe2\x80\x94 date is correct' in verify_page.data
 
     edit_page = client.post('/verify-scan', data={
         'action': 'edit',
@@ -286,6 +292,8 @@ def test_rescan_returns_to_scanner_and_discards_pending_scan():
     assert rescan.status_code == 200
     assert rescan.request.path == '/scan'
     assert b'Open Camera' in rescan.data
+    assert b'id="camera-zoom" min="1" max="3"' in rescan.data
+    assert b'1.0\xc3\x97' in rescan.data
 
     verify_without_pending_scan = client.get('/verify-scan', follow_redirects=False)
     assert verify_without_pending_scan.status_code == 302
@@ -320,6 +328,8 @@ def test_image_ocr_result_is_reviewed_before_it_is_saved(monkeypatch, tmp_path):
     verify_page = client.get('/verify-scan')
     assert verify_page.status_code == 200
     assert b'2030-06-11' in verify_page.data
+    assert b'name="expiry_date"' in verify_page.data
+    assert b'readonly' not in verify_page.data
     assert b'Please compare it with the package.' in verify_page.data
     with app.app_context():
         assert Product.query.filter_by(product_name='Cereal').count() == 0
@@ -333,6 +343,63 @@ def test_image_ocr_result_is_reviewed_before_it_is_saved(monkeypatch, tmp_path):
     assert save.status_code == 302
     with app.app_context():
         assert Product.query.filter_by(product_name='Cereal').count() == 1
+
+
+def test_ocr_tries_multiple_image_reading_modes_and_ignores_manufacture_date(monkeypatch, tmp_path):
+    image_path = tmp_path / 'label.png'
+    Image.new('RGB', (40, 20), color='white').save(image_path)
+    calls = []
+    monkeypatch.setenv('TESSERACT_CMD', 'test-tesseract')
+    monkeypatch.setattr(
+        pytesseract.pytesseract,
+        'tesseract_cmd',
+        pytesseract.pytesseract.tesseract_cmd,
+    )
+
+    def fake_ocr(_image, config):
+        calls.append(config)
+        return 'MFG 2030-01-01 EXP 2030-06-11' if len(calls) == 1 else ''
+
+    monkeypatch.setattr('food_expiry_app.utils.pytesseract.image_to_string', fake_ocr)
+
+    text = extract_ocr_text_from_image(str(image_path))
+
+    assert len(calls) == 2
+    assert pytesseract.pytesseract.tesseract_cmd == 'test-tesseract'
+    assert '--psm 6' in calls[0]
+    assert '--psm 11' in calls[1]
+    assert find_best_expiry_date(text) == date(2030, 6, 11)
+
+
+def test_ocr_parses_month_year_expiry_as_last_day_of_month():
+    assert find_best_expiry_date('BEST BEFORE 06/2030') == date(2030, 6, 30)
+
+
+def test_ocr_engine_error_is_shown_and_manual_date_remains_available(monkeypatch, tmp_path):
+    app = build_app()
+    app.config['UPLOAD_FOLDER'] = str(tmp_path / 'uploads')
+    client = app.test_client()
+    client.post('/signup', data={
+        'name': 'OCR Error Alice',
+        'email': 'ocr-error@example.com',
+        'password': 'secret123',
+    })
+    def fail_ocr(_path):
+        raise OCRProcessingError('The OCR engine is unavailable. Enter the date manually.')
+
+    monkeypatch.setattr('food_expiry_app.routes.extract_ocr_text_from_image', fail_ocr)
+    image = BytesIO()
+    Image.new('RGB', (4, 4), color='white').save(image, format='PNG')
+    image.seek(0)
+
+    response = client.post('/scan', data={
+        'image': (image, 'label.png'),
+    }, follow_redirects=True)
+
+    assert response.status_code == 200
+    assert b'The OCR engine is unavailable. Enter the date manually.' in response.data
+    assert b'name="expiry_date"' in response.data
+    assert b'Confirm entered date' in response.data
 
 
 def test_inventory_search_filter_and_sort_use_user_products():
