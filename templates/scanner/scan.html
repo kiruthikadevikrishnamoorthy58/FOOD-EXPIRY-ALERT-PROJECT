@@ -53,9 +53,12 @@
             </p>
         </section>
         <div class="upload-drop">
-            <span class="upload-icon" aria-hidden="true">🖼️</span>
-            <div><label for="image">Choose a photo instead</label><small>JPG or PNG · keep the date readable</small></div>
-            <input type="file" name="image" id="image" accept="image/png,image/jpeg" capture="environment">
+            <span class="upload-icon" aria-hidden="true">📷</span>
+            <div class="upload-camera-choice">
+                <label for="image" class="upload-camera-button">Open Camera</label>
+                <small>Use your phone camera for a sharp original photo</small>
+            </div>
+            <input class="upload-camera-input" type="file" name="image" id="image" accept="image/png,image/jpeg" capture="environment" aria-label="Open camera or choose a photo">
         </div>
         <div class="field">
             <label for="storage_location">Storage location <span class="optional-label">Optional</span></label>

@@ -295,6 +295,7 @@ def test_rescan_returns_to_scanner_and_discards_pending_scan():
     assert rescan.status_code == 200
     assert rescan.request.path == '/scan'
     assert b'Open Camera' in rescan.data
+    assert b'Use your phone camera for a sharp original photo' in rescan.data
     assert b'id="camera-zoom" min="1" max="3"' in rescan.data
     assert b'1.0\xc3\x97' in rescan.data
 
@@ -364,7 +365,7 @@ def test_ocr_stops_after_first_pass_finds_expiry_date(monkeypatch, tmp_path):
 
     def fake_ocr(_image, config, timeout):
         calls.append(config)
-        assert timeout == 6
+        assert timeout == 3
         return 'EXP 2030-06-11'
 
     monkeypatch.setattr('food_expiry_app.utils.pytesseract.image_to_string', fake_ocr)
@@ -373,7 +374,7 @@ def test_ocr_stops_after_first_pass_finds_expiry_date(monkeypatch, tmp_path):
 
     assert len(calls) == 1
     assert pytesseract.pytesseract.tesseract_cmd == 'test-tesseract'
-    assert '--psm 6' in calls[0]
+    assert '--psm 11' in calls[0]
     assert find_best_expiry_date(text) == date(2030, 6, 11)
 
 
@@ -384,7 +385,7 @@ def test_ocr_uses_fallback_mode_only_when_first_pass_misses_date(monkeypatch, tm
 
     def fake_ocr(_image, config, timeout):
         calls.append(config)
-        assert timeout == 6
+        assert timeout == 3
         return '' if len(calls) == 1 else 'BEST BEFORE 31/12/2030'
 
     monkeypatch.setattr('food_expiry_app.utils.pytesseract.image_to_string', fake_ocr)
@@ -392,8 +393,9 @@ def test_ocr_uses_fallback_mode_only_when_first_pass_misses_date(monkeypatch, tm
     text = extract_ocr_text_from_image(str(image_path))
 
     assert len(calls) == 2
-    assert '--psm 6' in calls[0]
-    assert '--psm 6' in calls[1]
+    assert '--psm 11' in calls[0]
+    assert '--psm 11' in calls[1]
+    assert 'tessedit_char_whitelist' in calls[1]
     assert find_best_expiry_date(text) == date(2030, 12, 31)
 
 

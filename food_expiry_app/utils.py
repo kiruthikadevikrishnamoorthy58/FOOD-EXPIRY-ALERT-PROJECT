@@ -96,9 +96,9 @@ def extract_ocr_text_from_image(file_path):
         enhanced = ImageEnhance.Contrast(grayscale).enhance(1.7).filter(ImageFilter.SHARPEN)
 
         def read_text(source, config):
-            return pytesseract.image_to_string(source, config=config, timeout=6)
+            return pytesseract.image_to_string(source, config=config, timeout=3)
 
-        results = [read_text(enhanced, '--oem 3 --psm 6')]
+        results = [read_text(enhanced, '--oem 3 --psm 11')]
         if find_best_expiry_date(results[0]):
             return results[0].strip()
 
@@ -118,17 +118,11 @@ def extract_ocr_text_from_image(file_path):
         center = ImageEnhance.Contrast(center).enhance(1.5).filter(
             ImageFilter.UnsharpMask(radius=2, percent=150, threshold=3)
         )
-        results.append(read_text(center, '--oem 3 --psm 6'))
-        if find_best_expiry_date('\n'.join(results)):
-            return '\n'.join(text.strip() for text in results if text.strip())
-
-        date_only = read_text(
+        results.append(read_text(
             center,
-            '--oem 3 --psm 11 -c tessedit_char_whitelist=0123456789./-',
-        )
-        results.append(date_only)
-        combined_text = '\n'.join(text.strip() for text in results if text.strip())
-        return combined_text
+            '--oem 3 --psm 11 -c tessedit_char_whitelist=0123456789OQDIl|./-',
+        ))
+        return '\n'.join(dict.fromkeys(text.strip() for text in results if text.strip()))
     except pytesseract.TesseractNotFoundError as error:
         raise OCRProcessingError(
             'The OCR engine is unavailable. Enter the date manually or install Tesseract OCR.'
