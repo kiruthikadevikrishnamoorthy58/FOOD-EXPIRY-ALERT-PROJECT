@@ -14,6 +14,16 @@ KEYWORDS = (
     r'\bBEST[\s-]+BEFORE\b',
     r'\bSELL[\s-]+BY\b',
 )
+PREPARATION_KEYWORDS = (
+    r'\bMFG\b',
+    r'\bMFD\b',
+    r'\bMANUFACTUR(?:E|ED|ING)\b',
+    r'\bPREPARED?\b',
+    r'\bPACKED\b',
+    r'\bPACKING\b',
+    r'\bPKD\b',
+    r'\bPROD(?:UCTION)?\b',
+)
 
 
 class OCRProcessingError(Exception):
@@ -104,7 +114,7 @@ def extract_ocr_text_from_image(file_path):
             enhanced = ImageEnhance.Contrast(grayscale).enhance(1.7).filter(ImageFilter.SHARPEN)
             text = read_text(enhanced, '--oem 3 --psm 11')
             results.append(text)
-            if find_best_expiry_date(text):
+            if _has_labeled_expiry_date(text):
                 return text.strip()
 
         for angle in (270, 90):
@@ -125,7 +135,7 @@ def extract_ocr_text_from_image(file_path):
             enhanced = ImageEnhance.Contrast(grayscale).enhance(1.7).filter(ImageFilter.SHARPEN)
             text = read_text(enhanced, '--oem 3 --psm 11')
             results.append(text)
-            if find_best_expiry_date(text):
+            if _has_labeled_expiry_date(text):
                 return text.strip()
 
         return '\n'.join(dict.fromkeys(text.strip() for text in results if text.strip()))
@@ -199,23 +209,91 @@ def _date_candidates(text, allow_space=False):
 def find_best_expiry_date(text, allow_unmarked=True):
     if not text:
         return None
-    lines = text.splitlines()
-    for index, line in enumerate(lines):
-        for keyword in KEYWORDS:
-            match = re.search(keyword, line, flags=re.IGNORECASE)
-            if not match:
-                continue
-            line_candidates = list(_date_candidates(line[match.end():], allow_space=True))
-            for nearby_line in lines[index + 1:index + 4]:
-                if line_candidates:
-                    break
-                line_candidates = list(_date_candidates(nearby_line, allow_space=True))
-            if line_candidates:
-                return line_candidates[0][1]
+    lines = text.splitlines(keepends=True)
+    if not lines:
+        return None
 
-    if not allow_unmarked:
+    line_ranges = []
+    offset = 0
+    for line in lines:
+        line_ranges.append((offset, offset + len(line)))
+        offset += len(line)
+
+    def line_for_position(position):
+        return next(
+            (index for index, (start, end) in enumerate(line_ranges) if start <= position < end),
+            len(line_ranges) - 1,
+        )
+
+    expiry_labels = [
+        match.start()
+        for keyword in KEYWORDS
+        for match in re.finditer(keyword, text, flags=re.IGNORECASE)
+    ]
+    preparation_labels = [
+        match.start()
+        for keyword in PREPARATION_KEYWORDS
+        for match in re.finditer(keyword, text, flags=re.IGNORECASE)
+    ]
+    expiry_candidates = []
+    unmarked_candidates = []
+
+    for position, parsed in _date_candidates(text, allow_space=True):
+        candidate_line = line_for_position(position)
+
+        def nearest_label(labels, max_line_distance):
+            distances = [
+                abs(position - label_position)
+                for label_position in labels
+                if abs(candidate_line - line_for_position(label_position)) <= max_line_distance
+            ]
+            return min(distances, default=None)
+
+        expiry_distance = nearest_label(expiry_labels, 2)
+        preparation_distance = nearest_label(preparation_labels, 1)
+        if expiry_distance is not None and (
+            preparation_distance is None or expiry_distance < preparation_distance
+        ):
+            expiry_candidates.append((expiry_distance, parsed))
+        elif preparation_distance is None:
+            unmarked_candidates.append(parsed)
+
+    if expiry_candidates:
+        selected = min(
+            expiry_candidates,
+            key=lambda candidate: (candidate[0], -candidate[1].toordinal()),
+        )
+        return selected[1]
+    if not allow_unmarked or not unmarked_candidates:
         return None
-    candidates = list(_date_candidates(text))
-    if not candidates:
-        return None
-    return max(candidates, key=lambda candidate: candidate[1])[1]
+    return max(unmarked_candidates)
+
+
+def _has_labeled_expiry_date(text):
+    if not text:
+        return False
+    lines = text.splitlines(keepends=True)
+    label_positions = [
+        match.start()
+        for keyword in KEYWORDS
+        for match in re.finditer(keyword, text, flags=re.IGNORECASE)
+    ]
+    if not label_positions:
+        return False
+    line_ranges = []
+    offset = 0
+    for line in lines:
+        line_ranges.append((offset, offset + len(line)))
+        offset += len(line)
+
+    def line_for_position(position):
+        return next(
+            (index for index, (start, end) in enumerate(line_ranges) if start <= position < end),
+            0,
+        )
+
+    return any(
+        abs(line_for_position(position) - line_for_position(label)) <= 2
+        for position, _ in _date_candidates(text, allow_space=True)
+        for label in label_positions
+    )

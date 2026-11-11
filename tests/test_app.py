@@ -399,6 +399,27 @@ def test_ocr_retries_sideways_image_orientation_when_first_pass_misses_date(monk
     assert find_best_expiry_date(text) == date(2030, 12, 31)
 
 
+def test_ocr_checks_more_orientations_when_first_pass_only_finds_preparation_date(
+    monkeypatch, tmp_path
+):
+    image_path = tmp_path / 'label.png'
+    Image.new('RGB', (40, 20), color='white').save(image_path)
+    calls = []
+    responses = ('MFG 01/01/2026', 'USE BY 31/12/2026')
+
+    def fake_ocr(_image, config, timeout):
+        calls.append(config)
+        assert timeout == 2.5
+        return responses[min(len(calls) - 1, len(responses) - 1)]
+
+    monkeypatch.setattr('food_expiry_app.utils.pytesseract.image_to_string', fake_ocr)
+
+    text = extract_ocr_text_from_image(str(image_path))
+
+    assert len(calls) == 2
+    assert find_best_expiry_date(text) == date(2026, 12, 31)
+
+
 def test_ocr_parses_slashes_misread_as_ones_near_use_by_label():
     assert find_best_expiry_date('USE\n\n28107126') == date(2026, 7, 28)
 
@@ -409,6 +430,15 @@ def test_ocr_parses_month_year_expiry_as_last_day_of_month():
 
 def test_ocr_prefers_expiry_date_over_manufacturing_date():
     assert find_best_expiry_date('MFG 28/07/26\nEXP 25/12/26') == date(2026, 12, 25)
+
+
+def test_ocr_ignores_prepared_date_when_selecting_an_unmarked_expiry():
+    text = 'Prepared on 28/07/26\nLot details\n25/12/26'
+    assert find_best_expiry_date(text) == date(2026, 12, 25)
+
+
+def test_ocr_does_not_return_prepared_date_as_expiry_when_it_is_the_only_date():
+    assert find_best_expiry_date('Manufactured on 28/07/26') is None
 
 
 def test_ocr_without_expiry_label_prefers_latest_printed_date():
