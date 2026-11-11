@@ -294,10 +294,11 @@ def test_rescan_returns_to_scanner_and_discards_pending_scan():
     }, follow_redirects=True)
     assert rescan.status_code == 200
     assert rescan.request.path == '/scan'
-    assert b'Open Camera' in rescan.data
-    assert b'Use your phone camera for a sharp original photo' in rescan.data
-    assert b'id="camera-zoom" min="1" max="3"' in rescan.data
-    assert b'1.0\xc3\x97' in rescan.data
+    assert b'id="open-camera"' not in rescan.data
+    assert b'id="capture-photo"' not in rescan.data
+    assert b'id="camera-frame"' in rescan.data
+    assert b'class="upload-camera-button"><span aria-hidden="true">\xf0\x9f\x93\xb7</span> Open Camera' in rescan.data
+    assert b'capture="environment"' in rescan.data
 
     verify_without_pending_scan = client.get('/verify-scan', follow_redirects=False)
     assert verify_without_pending_scan.status_code == 302

@@ -21,14 +21,12 @@
             <input type="text" name="category" id="category" value="General" placeholder="e.g. Dairy, Produce">
         </div>
         <section class="camera-panel" aria-label="Camera scanner">
-            <div class="camera-frame">
-                <video id="camera-preview" class="camera-preview" autoplay playsinline muted hidden></video>
+            <div class="camera-frame" id="camera-frame">
                 <img id="captured-preview" class="camera-preview" alt="Captured food label preview" hidden>
-                <canvas id="capture-canvas" hidden></canvas>
                 <div class="camera-placeholder" id="camera-placeholder">
                     <span aria-hidden="true">🥫</span>
                     <strong>Your label goes here</strong>
-                    <small>Move closer so the expiry digits fill the frame. Tap to focus, then hold still.</small>
+                    <small>Tap Open Camera below and capture a clear, close-up photo of the expiry date.</small>
                 </div>
                 <div class="camera-scan-status" id="camera-scan-status" role="status" aria-live="polite">
                     <span class="camera-status-dot" aria-hidden="true"></span>
@@ -38,27 +36,18 @@
                 <span class="scan-corner corner-tl" aria-hidden="true"></span><span class="scan-corner corner-tr" aria-hidden="true"></span>
                 <span class="scan-corner corner-bl" aria-hidden="true"></span><span class="scan-corner corner-br" aria-hidden="true"></span>
             </div>
-            <div class="camera-actions">
-                <button class="btn btn-primary" type="button" id="open-camera"><span aria-hidden="true">📷</span> Open Camera</button>
-                <button class="btn btn-capture" type="button" id="capture-photo" hidden><span aria-hidden="true">◉</span> Capture Photo</button>
-                <button class="btn btn-secondary" type="button" id="retake-photo" hidden>↻ Retake photo</button>
-            </div>
-            <div class="camera-zoom-controls" id="camera-zoom-controls" hidden>
-                <label for="camera-zoom">Camera zoom <output id="camera-zoom-value" for="camera-zoom">1.0×</output></label>
-                <input type="range" id="camera-zoom" min="1" max="3" step="0.1" value="1">
-                <small>Starts at 1×. Zoom in only if the date is hard to read.</small>
-            </div>
             <p id="camera-message" class="camera-message" role="status" aria-live="polite">
-                Camera access needs your permission. You can upload a photo instead.
+                Use Open Camera to take a full-quality photo with your phone.
             </p>
         </section>
         <div class="upload-drop">
             <span class="upload-icon" aria-hidden="true">📷</span>
             <div class="upload-camera-choice">
-                <label for="image" class="upload-camera-button">Open Camera</label>
-                <small>Use your phone camera for a sharp original photo</small>
+                <label for="image" class="upload-camera-button"><span aria-hidden="true">📷</span> Open Camera</label>
+                <small>Take a photo or choose one from your phone</small>
             </div>
             <input class="upload-camera-input" type="file" name="image" id="image" accept="image/png,image/jpeg" capture="environment" aria-label="Open camera or choose a photo">
+            <button class="btn btn-secondary retake-photo" type="button" id="retake-photo" hidden>↻ Take another photo</button>
         </div>
         <div class="field">
             <label for="storage_location">Storage location <span class="optional-label">Optional</span></label>
