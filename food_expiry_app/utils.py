@@ -9,7 +9,8 @@ from PIL import Image, ImageEnhance, ImageFilter, ImageOps
 
 KEYWORDS = (
     r'\bEXP(?:IRY|IRATION|IRES?)?\b',
-    r'\bUSE[\s-]+BY\b',
+    r'\bUSE[\s-]+(?:B|8|O)[\s-]*[YV]\b',
+    r'\bUSE\b',
     r'\bBEST[\s-]+BEFORE\b',
     r'\bSELL[\s-]+BY\b',
 )
@@ -86,42 +87,47 @@ def extract_ocr_text_from_image(file_path):
         configure_tesseract()
         with Image.open(file_path) as source:
             image = ImageOps.exif_transpose(source).convert('RGB')
-        scale = min(3, 1800 / max(image.size))
-        if scale != 1:
-            image = image.resize(
-                (round(image.width * scale), round(image.height * scale)),
-                Image.Resampling.LANCZOS,
-            )
-        grayscale = ImageOps.autocontrast(image.convert('L'))
-        enhanced = ImageEnhance.Contrast(grayscale).enhance(1.7).filter(ImageFilter.SHARPEN)
 
         def read_text(source, config):
-            return pytesseract.image_to_string(source, config=config, timeout=3)
+            return pytesseract.image_to_string(source, config=config, timeout=2.5)
 
-        results = [read_text(enhanced, '--oem 3 --psm 11')]
-        if find_best_expiry_date(results[0]):
-            return results[0].strip()
+        results = []
+        for angle in (0, 270, 90, 180):
+            oriented = image.rotate(angle, expand=True) if angle else image.copy()
+            scale = min(3, 1800 / max(oriented.size))
+            if scale != 1:
+                oriented = oriented.resize(
+                    (round(oriented.width * scale), round(oriented.height * scale)),
+                    Image.Resampling.LANCZOS,
+                )
+            grayscale = ImageOps.autocontrast(oriented.convert('L'))
+            enhanced = ImageEnhance.Contrast(grayscale).enhance(1.7).filter(ImageFilter.SHARPEN)
+            text = read_text(enhanced, '--oem 3 --psm 11')
+            results.append(text)
+            if find_best_expiry_date(text):
+                return text.strip()
 
-        center = enhanced.crop((
-            round(enhanced.width * 0.12),
-            round(enhanced.height * 0.2),
-            round(enhanced.width * 0.88),
-            round(enhanced.height * 0.8),
-        ))
-        center_scale = min(4, 2200 / max(center.size))
-        if center_scale != 1:
-            center = center.resize(
-                (round(center.width * center_scale), round(center.height * center_scale)),
-                Image.Resampling.LANCZOS,
-            )
-        center = ImageOps.autocontrast(center)
-        center = ImageEnhance.Contrast(center).enhance(1.5).filter(
-            ImageFilter.UnsharpMask(radius=2, percent=150, threshold=3)
-        )
-        results.append(read_text(
-            center,
-            '--oem 3 --psm 11 -c tessedit_char_whitelist=0123456789OQDIl|./-',
-        ))
+        for angle in (270, 90):
+            oriented = image.rotate(angle, expand=True)
+            center = oriented.crop((
+                round(oriented.width * 0.12),
+                round(oriented.height * 0.12),
+                round(oriented.width * 0.88),
+                round(oriented.height * 0.88),
+            ))
+            scale = min(3, 2200 / max(center.size))
+            if scale != 1:
+                center = center.resize(
+                    (round(center.width * scale), round(center.height * scale)),
+                    Image.Resampling.LANCZOS,
+                )
+            grayscale = ImageOps.autocontrast(center.convert('L'))
+            enhanced = ImageEnhance.Contrast(grayscale).enhance(1.7).filter(ImageFilter.SHARPEN)
+            text = read_text(enhanced, '--oem 3 --psm 11')
+            results.append(text)
+            if find_best_expiry_date(text):
+                return text.strip()
+
         return '\n'.join(dict.fromkeys(text.strip() for text in results if text.strip()))
     except pytesseract.TesseractNotFoundError as error:
         raise OCRProcessingError(
@@ -155,6 +161,17 @@ def _date_candidates(text, allow_space=False):
         'D': '0', 'd': '0', 'I': '1', 'i': '1',
         'l': '1', '|': '1',
     })
+    if allow_space:
+        separator_as_one = re.compile(
+            r'(?<![A-Za-z0-9])([0-9OQDIl|]{2})1([0-9OQDIl|]{2})1([0-9OQDIl|]{2})(?![A-Za-z0-9])',
+            re.IGNORECASE,
+        )
+        for candidate in separator_as_one.finditer(text):
+            value = '/'.join(candidate.group(index).translate(ocr_digit_map) for index in (1, 2, 3))
+            parsed = parse_date(value)
+            if parsed:
+                yield candidate.start(), parsed
+
     for candidate in numeric_date.finditer(text):
         value = '/'.join(candidate.group(index).translate(ocr_digit_map) for index in (1, 3, 5))
         parsed = parse_date(value)
@@ -189,8 +206,10 @@ def find_best_expiry_date(text, allow_unmarked=True):
             if not match:
                 continue
             line_candidates = list(_date_candidates(line[match.end():], allow_space=True))
-            if not line_candidates and index + 1 < len(lines):
-                line_candidates = list(_date_candidates(lines[index + 1], allow_space=True))
+            for nearby_line in lines[index + 1:index + 4]:
+                if line_candidates:
+                    break
+                line_candidates = list(_date_candidates(nearby_line, allow_space=True))
             if line_candidates:
                 return line_candidates[0][1]
 

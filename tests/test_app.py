@@ -366,7 +366,7 @@ def test_ocr_stops_after_first_pass_finds_expiry_date(monkeypatch, tmp_path):
 
     def fake_ocr(_image, config, timeout):
         calls.append(config)
-        assert timeout == 3
+        assert timeout == 2.5
         return 'EXP 2030-06-11'
 
     monkeypatch.setattr('food_expiry_app.utils.pytesseract.image_to_string', fake_ocr)
@@ -379,14 +379,14 @@ def test_ocr_stops_after_first_pass_finds_expiry_date(monkeypatch, tmp_path):
     assert find_best_expiry_date(text) == date(2030, 6, 11)
 
 
-def test_ocr_uses_fallback_mode_only_when_first_pass_misses_date(monkeypatch, tmp_path):
+def test_ocr_retries_sideways_image_orientation_when_first_pass_misses_date(monkeypatch, tmp_path):
     image_path = tmp_path / 'label.png'
     Image.new('RGB', (40, 20), color='white').save(image_path)
     calls = []
 
     def fake_ocr(_image, config, timeout):
         calls.append(config)
-        assert timeout == 3
+        assert timeout == 2.5
         return '' if len(calls) == 1 else 'BEST BEFORE 31/12/2030'
 
     monkeypatch.setattr('food_expiry_app.utils.pytesseract.image_to_string', fake_ocr)
@@ -396,8 +396,11 @@ def test_ocr_uses_fallback_mode_only_when_first_pass_misses_date(monkeypatch, tm
     assert len(calls) == 2
     assert '--psm 11' in calls[0]
     assert '--psm 11' in calls[1]
-    assert 'tessedit_char_whitelist' in calls[1]
     assert find_best_expiry_date(text) == date(2030, 12, 31)
+
+
+def test_ocr_parses_slashes_misread_as_ones_near_use_by_label():
+    assert find_best_expiry_date('USE\n\n28107126') == date(2026, 7, 28)
 
 
 def test_ocr_parses_month_year_expiry_as_last_day_of_month():
@@ -455,7 +458,7 @@ def test_ocr_engine_error_is_shown_and_manual_date_remains_available(monkeypatch
 
     assert response.status_code == 200
     assert b'The OCR engine is unavailable. Enter the date manually.' in response.data
-    assert b'class="scan-warning"' in response.data
+    assert b'class="scan-error"' in response.data
     assert b'class="flash flash-warning"' not in response.data
     assert b'name="expiry_date"' in response.data
     assert b'name="action" value="rescan" formnovalidate' in response.data
