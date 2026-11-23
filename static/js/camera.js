@@ -146,19 +146,14 @@
 
     form.addEventListener('submit', () => {
         const hasPhoto = Boolean(fileInput.files?.length);
-        const manualDate = document.getElementById('manual_date');
-        if (!hasPhoto && !manualDate?.value) {
+        if (!hasPhoto) {
             return;
         }
 
-        if (hasPhoto) {
-            stopCamera();
-            setState('reading', 'READING PHOTO · PLEASE WAIT');
-            message.textContent = 'Reading the expiry date from your original photo…';
-            processLabel.textContent = 'Reading date...';
-        } else {
-            processLabel.textContent = 'Preparing verification...';
-        }
+        stopCamera();
+        setState('reading', 'READING PHOTO · PLEASE WAIT');
+        message.textContent = 'Reading the expiry date from your photo…';
+        processLabel.textContent = 'Reading date...';
 
         processButton.disabled = true;
         processingIndicator.hidden = false;

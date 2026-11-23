@@ -13,7 +13,7 @@ A Flask-based food inventory and expiry tracking web app built for the capstone 
   - Red: expired
 - Product scan workflow with OCR-based expiry detection and manual validation step
 - Laptop and mobile camera capture through the browser, with phone camera/photo-picker fallback, image preview, and scan-status indicator
-- OCR date results are shown for confirmation and can be edited before saving; OCR failures explain how to retry or enter the date manually
+- OCR dates are displayed automatically for confirmation and can optionally be corrected before saving; if a date cannot be read, the scanner requests a clearer photo instead of manual date entry
 - Reminder section for soon-to-expire or expired items
 - Browser reminder tones with selectable sound and volume; start and acknowledge sounds on the reminders page (no background-alert service)
 - Responsive food-tech interface with user-specific dashboard summaries and inventory chart

@@ -198,11 +198,11 @@ def extract_ocr_text_from_image(file_path):
         return '\n'.join(dict.fromkeys(text.strip() for text in results if text.strip()))
     except pytesseract.TesseractNotFoundError as error:
         raise OCRProcessingError(
-            'The OCR engine is unavailable. Enter the date manually or install Tesseract OCR.'
+            'The OCR engine is unavailable. Please install Tesseract OCR or try scanning again later.'
         ) from error
     except (OSError, ValueError, RuntimeError, pytesseract.TesseractError) as error:
         raise OCRProcessingError(
-            'The photo could not be read quickly. Try a close, sharp photo with the expiry date centered, or enter it manually.'
+            'The photo could not be read quickly. Try a close, sharp photo with the expiry date centered, then scan again.'
         ) from error
 
 

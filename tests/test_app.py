@@ -226,6 +226,7 @@ def test_all_authenticated_pages_render_with_dashboard_data():
             assert b'id="camera-scan-status-text">Camera off' in response.data
             assert b'id="start-camera"' in response.data
             assert b'id="camera-stream"' in response.data
+            assert b'name="manual_date"' not in response.data
 
 
 def test_manual_scan_requires_review_before_saving_and_supports_date_edit():
@@ -246,7 +247,9 @@ def test_manual_scan_requires_review_before_saving_and_supports_date_edit():
     assert response.location.endswith('/verify-scan')
     verify_page = client.get('/verify-scan')
     assert verify_page.status_code == 200
-    assert b'Yes \xe2\x80\x94 date is correct' in verify_page.data
+    assert b'Scanned expiry date: 21/05/2030' in verify_page.data
+    assert b'Save product with scanned date' in verify_page.data
+    assert b'type="date"' not in verify_page.data
 
     edit_page = client.post('/verify-scan', data={
         'action': 'edit',
@@ -338,7 +341,7 @@ def test_image_ocr_result_is_reviewed_before_it_is_saved(monkeypatch, tmp_path):
     assert b'2030-06-11' in verify_page.data
     assert b'name="expiry_date"' in verify_page.data
     assert b'readonly' not in verify_page.data
-    assert b'Scanned date: 11/06/2030' in verify_page.data
+    assert b'Scanned expiry date: 11/06/2030' in verify_page.data
     assert b'Please compare it with the package.' in verify_page.data
     assert b'class="flash flash-warning"' not in verify_page.data
     assert verify_page.data.count(b'class="scan-warning"') == 0
@@ -525,7 +528,7 @@ def test_ocr_still_parses_iso_date_format():
     assert find_best_expiry_date('EXP 2030-06-11') == date(2030, 6, 11)
 
 
-def test_ocr_engine_error_is_shown_and_manual_date_remains_available(monkeypatch, tmp_path):
+def test_ocr_engine_error_requests_rescan_when_date_is_unavailable(monkeypatch, tmp_path):
     app = build_app()
     app.config['UPLOAD_FOLDER'] = str(tmp_path / 'uploads')
     client = app.test_client()
@@ -535,7 +538,7 @@ def test_ocr_engine_error_is_shown_and_manual_date_remains_available(monkeypatch
         'password': 'secret123',
     })
     def fail_ocr(_path):
-        raise OCRProcessingError('The OCR engine is unavailable. Enter the date manually.')
+        raise OCRProcessingError('The OCR engine is unavailable. Please try scanning again later.')
 
     monkeypatch.setattr('food_expiry_app.routes.extract_ocr_text_from_image', fail_ocr)
     image = BytesIO()
@@ -547,12 +550,14 @@ def test_ocr_engine_error_is_shown_and_manual_date_remains_available(monkeypatch
     }, follow_redirects=True)
 
     assert response.status_code == 200
-    assert b'The OCR engine is unavailable. Enter the date manually.' in response.data
+    assert b'The OCR engine is unavailable. Please try scanning again later.' in response.data
     assert b'class="scan-error"' in response.data
     assert b'class="flash flash-warning"' not in response.data
-    assert b'name="expiry_date"' in response.data
+    assert b'name="expiry_date"' not in response.data
     assert b'name="action" value="rescan" formnovalidate' in response.data
-    assert b'Confirm entered date' in response.data
+    assert b'type="date"' not in response.data
+    assert b'Save product with scanned date' not in response.data
+    assert b'Retake the photo' in response.data
 
 
 def test_inventory_search_filter_and_sort_use_user_products():

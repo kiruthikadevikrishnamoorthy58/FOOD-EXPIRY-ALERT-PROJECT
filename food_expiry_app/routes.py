@@ -144,7 +144,7 @@ def scan_product():
                 'notes': request.form.get('notes', '').strip(),
             }
             if expiry_date:
-                flash('Please verify the expiry date detected by the system. Is this date correct?', 'info')
+                flash('Expiry date scanned automatically. Check it against the package, then save or edit if needed.', 'info')
             return redirect(url_for('main.verify_scan'))
 
         manual_date = request.form.get('manual_date')
