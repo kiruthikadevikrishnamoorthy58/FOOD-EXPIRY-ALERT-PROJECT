@@ -1,17 +1,22 @@
 from datetime import date, timedelta
 from io import BytesIO
+import os
+import shutil
 import sqlite3
 
 import pytest
 import pytesseract
-from PIL import Image
+from PIL import Image, ImageDraw, ImageFont
 
 from food_expiry_app import create_app, db, normalize_database_url
 from food_expiry_app.models import Product, User
 from food_expiry_app.utils import (
     OCRProcessingError,
+    _estimate_skew_angle,
+    extract_ocr_scan_from_image,
     extract_ocr_text_from_image,
     find_best_expiry_date,
+    find_expiry_date_candidates,
     get_expiry_status,
 )
 
@@ -323,8 +328,11 @@ def test_image_ocr_result_is_reviewed_before_it_is_saved(monkeypatch, tmp_path):
         'password': 'secret123',
     })
     monkeypatch.setattr(
-        'food_expiry_app.routes.extract_ocr_text_from_image',
-        lambda _path: 'EXP 2030-06-11',
+        'food_expiry_app.routes.extract_ocr_scan_from_image',
+        lambda _path: (
+            'EXP 2030-06-11',
+            find_expiry_date_candidates('EXP 2030-06-11'),
+        ),
     )
     image = BytesIO()
     Image.new('RGB', (4, 4), color='white').save(image, format='PNG')
@@ -340,7 +348,9 @@ def test_image_ocr_result_is_reviewed_before_it_is_saved(monkeypatch, tmp_path):
     assert verify_page.status_code == 200
     assert b'2030-06-11' in verify_page.data
     assert b'name="expiry_date"' in verify_page.data
-    assert b'readonly' not in verify_page.data
+    assert b'id="ocr_text" name="ocr_text" readonly' in verify_page.data
+    assert b'<details class="ocr-details" open>' in verify_page.data
+    assert b'EXP 2030-06-11' in verify_page.data
     assert b'Scanned expiry date: 11/06/2030' in verify_page.data
     assert b'Please compare it with the package.' in verify_page.data
     assert b'class="flash flash-warning"' not in verify_page.data
@@ -361,6 +371,80 @@ def test_image_ocr_result_is_reviewed_before_it_is_saved(monkeypatch, tmp_path):
     assert b'Jun 11, 2030' in inventory.data
 
 
+def test_multiple_expiry_candidates_require_user_selection(monkeypatch, tmp_path):
+    app = build_app()
+    app.config['UPLOAD_FOLDER'] = str(tmp_path / 'uploads')
+    client = app.test_client()
+    client.post('/signup', data={
+        'name': 'Candidate Alice',
+        'email': 'candidate@example.com',
+        'password': 'secret123',
+    })
+    monkeypatch.setattr(
+        'food_expiry_app.routes.extract_ocr_scan_from_image',
+        lambda _path: (
+            'MFG 28/07/2026\nEXP 25/12/2026\nBEST BEFORE 31/12/2026',
+            find_expiry_date_candidates(
+                'MFG 28/07/2026\nEXP 25/12/2026\nBEST BEFORE 31/12/2026'
+            ),
+        ),
+    )
+    image = BytesIO()
+    Image.new('RGB', (4, 4), color='white').save(image, format='PNG')
+    image.seek(0)
+
+    client.post('/scan', data={'image': (image, 'label.png')})
+    review = client.get('/verify-scan')
+    assert b'More than one possible date needs verification.' in review.data
+    assert b'value="2026-07-28"' not in review.data
+    assert b'value="2026-12-25"' in review.data
+    assert b'value="2026-12-31"' in review.data
+
+    saved = client.post('/verify-scan', data={
+        'action': 'save',
+        'product_name': 'Cereal',
+        'expiry_date': '2026-12-31',
+    })
+    assert saved.status_code == 302
+    with app.app_context():
+        product = Product.query.filter_by(product_name='Cereal').one()
+        assert product.expiry_date == date(2026, 12, 31)
+
+
+def test_no_readable_text_shows_manual_fallback_and_never_guesses(monkeypatch, tmp_path):
+    app = build_app()
+    app.config['UPLOAD_FOLDER'] = str(tmp_path / 'uploads')
+    client = app.test_client()
+    client.post('/signup', data={
+        'name': 'Manual Fallback Alice',
+        'email': 'manual-fallback@example.com',
+        'password': 'secret123',
+    })
+    monkeypatch.setattr(
+        'food_expiry_app.routes.extract_ocr_scan_from_image',
+        lambda _path: ('', []),
+    )
+    image = BytesIO()
+    Image.new('RGB', (4, 4), color='white').save(image, format='PNG')
+    image.seek(0)
+
+    client.post('/scan', data={'image': (image, 'label.png')})
+    review = client.get('/verify-scan')
+    assert b'Expiry date not detected. Please capture a clearer image or enter the date manually.' in review.data
+    assert b'id="manual_expiry_date"' in review.data
+    assert b'name="expiry_date"' not in review.data
+
+    saved = client.post('/verify-scan', data={
+        'action': 'save',
+        'product_name': 'Oat milk',
+        'manual_expiry_date': '2030-07-18',
+    })
+    assert saved.status_code == 302
+    with app.app_context():
+        product = Product.query.filter_by(product_name='Oat milk').one()
+        assert product.expiry_date == date(2030, 7, 18)
+
+
 def test_ocr_checks_the_entire_image_in_all_orientations(monkeypatch, tmp_path):
     image_path = tmp_path / 'label.png'
     Image.new('RGB', (40, 20), color='white').save(image_path)
@@ -374,7 +458,7 @@ def test_ocr_checks_the_entire_image_in_all_orientations(monkeypatch, tmp_path):
 
     def fake_ocr(_image, config, output_type, timeout):
         calls.append(config)
-        assert timeout == 2.5
+        assert timeout == 3.0
         assert output_type == pytesseract.Output.DICT
         return {
             'text': ['EXP', '2030-06-11'],
@@ -392,6 +476,8 @@ def test_ocr_checks_the_entire_image_in_all_orientations(monkeypatch, tmp_path):
     assert len(calls) == 6
     assert pytesseract.pytesseract.tesseract_cmd == 'test-tesseract'
     assert '--psm 11' in calls[0]
+    assert any('--psm 6' in config for config in calls)
+    assert any('--psm 7' in config for config in calls)
     assert find_best_expiry_date(text) == date(2030, 6, 11)
 
 
@@ -402,7 +488,7 @@ def test_ocr_retries_sideways_image_orientation_when_first_pass_misses_date(monk
 
     def fake_ocr(_image, config, output_type, timeout):
         calls.append(config)
-        assert timeout == 2.5
+        assert timeout == 3.0
         assert output_type == pytesseract.Output.DICT
         if len(calls) == 1:
             text = []
@@ -421,7 +507,7 @@ def test_ocr_retries_sideways_image_orientation_when_first_pass_misses_date(monk
 
     text = extract_ocr_text_from_image(str(image_path))
 
-    assert len(calls) == 6
+    assert len(calls) == 7
     assert '--psm 11' in calls[0]
     assert '--psm 11' in calls[1]
     assert find_best_expiry_date(text) == date(2030, 12, 31)
@@ -437,7 +523,7 @@ def test_ocr_checks_more_orientations_when_first_pass_only_finds_preparation_dat
 
     def fake_ocr(_image, config, output_type, timeout):
         calls.append(config)
-        assert timeout == 2.5
+        assert timeout == 3.0
         assert output_type == pytesseract.Output.DICT
         text = responses[min(len(calls) - 1, len(responses) - 1)]
         return {
@@ -453,7 +539,7 @@ def test_ocr_checks_more_orientations_when_first_pass_only_finds_preparation_dat
 
     text = extract_ocr_text_from_image(str(image_path))
 
-    assert len(calls) == 6
+    assert len(calls) == 8
     assert find_best_expiry_date(text) == date(2026, 12, 31)
 
 
@@ -465,7 +551,7 @@ def test_ocr_uses_word_positions_to_match_expiry_label_and_split_date(monkeypatc
     widths = [30, 20, 50, 30]
 
     def fake_ocr(_image, config, output_type, timeout):
-        assert timeout == 2.5
+        assert timeout == 3.0
         assert output_type == pytesseract.Output.DICT
         return {
             'text': words,
@@ -483,12 +569,49 @@ def test_ocr_uses_word_positions_to_match_expiry_label_and_split_date(monkeypatc
     assert find_best_expiry_date(text) == date(2026, 7, 28)
 
 
+def test_real_tesseract_prefers_expiry_over_mfg_on_synthetic_label(monkeypatch, tmp_path):
+    executable = os.getenv('TESSERACT_CMD', 'tesseract')
+    if not os.path.isfile(executable) and not shutil.which(executable):
+        executable = r'C:\Program Files\Tesseract-OCR\tesseract.exe'
+    if not os.path.isfile(executable) and not shutil.which(executable):
+        pytest.skip('Tesseract executable is not installed.')
+
+    font_path = r'C:\Windows\Fonts\arial.ttf'
+    if not os.path.isfile(font_path):
+        pytest.skip('Arial font is unavailable for the synthetic OCR label.')
+    monkeypatch.setenv('TESSERACT_CMD', executable)
+
+    image_path = tmp_path / 'synthetic-food-label.png'
+    image = Image.new('RGB', (1500, 620), 'white')
+    draw = ImageDraw.Draw(image)
+    font = ImageFont.truetype(font_path, 54)
+    draw.text((100, 200), 'MFG 28/07/2026', fill='black', font=font)
+    draw.text((100, 360), 'EXP 25/12/2026', fill='black', font=font)
+    image.save(image_path)
+
+    ocr_text, candidates = extract_ocr_scan_from_image(str(image_path))
+
+    assert 'MFG' in ocr_text
+    assert 'EXP' in ocr_text
+    assert [candidate['date'] for candidate in candidates] == ['2026-12-25']
+    assert candidates[0]['confidence'] == 'labelled'
+    assert candidates[0]['ocr_confidence'] >= 45
+
+
 def test_ocr_parses_slashes_misread_as_ones_near_use_by_label():
-    assert find_best_expiry_date('USE\n\n28107126') == date(2026, 7, 28)
+    assert find_best_expiry_date('USE BY\n\n28107126') == date(2026, 7, 28)
 
 
 def test_ocr_parses_month_year_expiry_as_last_day_of_month():
-    assert find_best_expiry_date('BEST BEFORE 06/2030') == date(2030, 6, 30)
+    assert find_best_expiry_date('BEST BEFORE 06/2030') is None
+    candidate = find_expiry_date_candidates('BEST BEFORE 06/2030')[0]
+    assert candidate['date'] == '2030-06-30'
+    assert candidate['precision'] == 'month'
+
+
+def test_ocr_two_digit_years_use_a_defined_century_pivot():
+    assert find_best_expiry_date('EXP 31/12/26') == date(2026, 12, 31)
+    assert find_best_expiry_date('EXP 31/12/99') == date(1999, 12, 31)
 
 
 def test_ocr_prefers_expiry_date_over_manufacturing_date():
@@ -497,19 +620,58 @@ def test_ocr_prefers_expiry_date_over_manufacturing_date():
 
 def test_ocr_ignores_prepared_date_when_selecting_an_unmarked_expiry():
     text = 'Prepared on 28/07/26\nLot details\n25/12/26'
-    assert find_best_expiry_date(text) == date(2026, 12, 25)
+    assert find_best_expiry_date(text) is None
+    candidates = find_expiry_date_candidates(text)
+    assert [candidate['date'] for candidate in candidates] == ['2026-12-25']
 
 
 def test_ocr_does_not_return_prepared_date_as_expiry_when_it_is_the_only_date():
     assert find_best_expiry_date('Manufactured on 28/07/26') is None
 
 
-def test_ocr_without_expiry_label_prefers_latest_printed_date():
-    assert find_best_expiry_date('28/07/26\n25/12/26') == date(2026, 12, 25)
+def test_ocr_returns_multiple_unlabelled_dates_for_verification():
+    assert find_best_expiry_date('28/07/26\n25/12/26') is None
+    candidates = find_expiry_date_candidates('28/07/26\n25/12/26')
+    assert [candidate['date'] for candidate in candidates] == [
+        '2026-07-28',
+        '2026-12-25',
+    ]
+
+
+def test_ocr_does_not_guess_ambiguous_day_month_order():
+    assert find_best_expiry_date('EXP 04/05/2026') is None
+    candidates = find_expiry_date_candidates('EXP 04/05/2026')
+    assert {candidate['date'] for candidate in candidates} == {
+        '2026-05-04',
+        '2026-04-05',
+    }
+
+
+def test_ocr_returns_all_labeled_expiry_dates_but_ignores_mfg():
+    candidates = find_expiry_date_candidates(
+        'MFG 28/07/2026\nEXP 25/12/2026\nBEST BEFORE 31/12/2026'
+    )
+    assert [candidate['date'] for candidate in candidates] == [
+        '2026-12-25',
+        '2026-12-31',
+    ]
+    assert all(candidate['label'] for candidate in candidates)
 
 
 def test_ocr_does_not_invent_date_from_unseparated_numbers():
     assert find_best_expiry_date('MRP 5.00 USP 0.15 1826') is None
+
+
+def test_ocr_skew_estimator_detects_small_text_rotation():
+    rows = [{
+        'words': [
+            {'left': 0, 'top': 20},
+            {'left': 100, 'top': 24},
+            {'left': 200, 'top': 28},
+        ],
+    }]
+    assert 2.0 < _estimate_skew_angle(rows) < 2.5
+    assert _estimate_skew_angle([{'words': [{'left': 0, 'top': 0}, {'left': 30, 'top': 1}]}]) == 0
 
 
 @pytest.mark.parametrize(('text', 'expected'), [
@@ -540,7 +702,7 @@ def test_ocr_engine_error_requests_rescan_when_date_is_unavailable(monkeypatch, 
     def fail_ocr(_path):
         raise OCRProcessingError('The OCR engine is unavailable. Please try scanning again later.')
 
-    monkeypatch.setattr('food_expiry_app.routes.extract_ocr_text_from_image', fail_ocr)
+    monkeypatch.setattr('food_expiry_app.routes.extract_ocr_scan_from_image', fail_ocr)
     image = BytesIO()
     Image.new('RGB', (4, 4), color='white').save(image, format='PNG')
     image.seek(0)
@@ -555,9 +717,9 @@ def test_ocr_engine_error_requests_rescan_when_date_is_unavailable(monkeypatch, 
     assert b'class="flash flash-warning"' not in response.data
     assert b'name="expiry_date"' not in response.data
     assert b'name="action" value="rescan" formnovalidate' in response.data
-    assert b'type="date"' not in response.data
+    assert b'id="manual_expiry_date"' in response.data
     assert b'Save product with scanned date' not in response.data
-    assert b'Retake the photo' in response.data
+    assert b'Re-scan' in response.data
 
 
 def test_inventory_search_filter_and_sort_use_user_products():

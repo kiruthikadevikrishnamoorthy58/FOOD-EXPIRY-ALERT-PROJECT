@@ -48,7 +48,7 @@ def create_app(test_config=None):
         ),
         SQLALCHEMY_TRACK_MODIFICATIONS=False,
         UPLOAD_FOLDER='data/uploads',
-        MAX_CONTENT_LENGTH=5 * 1024 * 1024,
+        MAX_CONTENT_LENGTH=12 * 1024 * 1024,
         WTF_CSRF_TIME_LIMIT=3600,
         REMEMBER_COOKIE_DURATION=timedelta(days=30),
         SESSION_COOKIE_HTTPONLY=True,

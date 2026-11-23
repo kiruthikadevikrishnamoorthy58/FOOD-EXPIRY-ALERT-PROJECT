@@ -75,8 +75,8 @@
                 audio: false,
                 video: {
                     facingMode: { ideal: facingMode },
-                    width: { ideal: 1280 },
-                    height: { ideal: 720 },
+                    width: { ideal: 1920 },
+                    height: { ideal: 1080 },
                 },
             });
             video.srcObject = cameraStream;
@@ -122,7 +122,7 @@
             transfer.items.add(photo);
             fileInput.files = transfer.files;
             fileInput.dispatchEvent(new Event('change', { bubbles: true }));
-        }, 'image/jpeg', 0.92);
+        }, 'image/jpeg', 0.98);
     };
 
     fileInput.addEventListener('change', showSelectedPhoto);

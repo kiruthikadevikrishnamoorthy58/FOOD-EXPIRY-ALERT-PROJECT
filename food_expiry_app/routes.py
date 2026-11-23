@@ -9,7 +9,13 @@ from werkzeug.utils import secure_filename
 from . import db, login_manager
 from .forms import AccountProfileForm, AlertSettingsForm, LoginForm, ProductForm, SignupForm
 from .models import AlertSettings, Product, User
-from .utils import OCRProcessingError, extract_ocr_text_from_image, find_best_expiry_date, get_expiry_status, normalize_email, parse_date
+from .utils import (
+    OCRProcessingError,
+    extract_ocr_scan_from_image,
+    get_expiry_status,
+    normalize_email,
+    parse_date,
+)
 
 
 auth_bp = Blueprint('auth', __name__)
@@ -128,15 +134,30 @@ def scan_product():
             uploaded.save(uploaded_path)
             scan_error = None
             try:
-                ocr_text = extract_ocr_text_from_image(uploaded_path)
+                ocr_text, expiry_candidates = extract_ocr_scan_from_image(uploaded_path)
             except OCRProcessingError as error:
                 current_app.logger.exception('OCR processing failed for uploaded scan')
                 ocr_text = ''
+                expiry_candidates = []
                 scan_error = str(error)
-            expiry_date = find_best_expiry_date(ocr_text)
+            expiry_date = None
+            if (len(expiry_candidates) == 1
+                    and expiry_candidates[0]['confidence'] == 'labelled'):
+                expiry_date = date.fromisoformat(expiry_candidates[0]['date'])
+            if scan_error is None and not ocr_text.strip():
+                scan_error = 'No readable text found. Check focus and lighting, then capture the expiry date again.'
+            elif scan_error is None and not expiry_candidates:
+                scan_error = (
+                    'Expiry date not detected. Please capture a clearer image or enter the date manually.'
+                )
+            elif scan_error is None and len(expiry_candidates) > 1:
+                scan_error = 'Multiple possible dates were detected. Select the expiry date candidate or enter it manually.'
+            elif scan_error is None and expiry_date is None:
+                scan_error = 'A possible date was found, but it needs your verification before saving.'
             session['pending_scan'] = {
                 'ocr_text': ocr_text,
                 'expiry_date': expiry_date.isoformat() if expiry_date else None,
+                'expiry_candidates': expiry_candidates,
                 'scan_error': scan_error,
                 'product_name': request.form.get('product_name', '').strip() or 'Unknown product',
                 'category': request.form.get('category', 'General').strip() or 'General',
@@ -156,6 +177,7 @@ def scan_product():
             session['pending_scan'] = {
                 'ocr_text': request.form.get('ocr_text', '') or 'Manual entry',
                 'expiry_date': parsed.isoformat(),
+                'expiry_candidates': [],
                 'product_name': request.form.get('product_name', 'Unknown product').strip() or 'Unknown product',
                 'category': request.form.get('category', 'General').strip() or 'General',
                 'storage_location': request.form.get('storage_location', '').strip(),
@@ -178,16 +200,32 @@ def verify_scan():
         action = request.form.get('action')
         if action == 'save':
             product_name = request.form.get('product_name', pending.get('product_name', 'Unknown product')).strip() or 'Unknown product'
-            expiry_date = parse_date(request.form.get('expiry_date'))
+            submitted_date = request.form.get('expiry_date', '').strip()
+            candidate_dates = {
+                candidate['date'] for candidate in pending.get('expiry_candidates', [])
+            }
+            known_date = pending.get('expiry_date')
+            if submitted_date and (
+                submitted_date == known_date or submitted_date in candidate_dates
+            ):
+                expiry_date = parse_date(submitted_date)
+            elif not known_date:
+                expiry_date = parse_date(request.form.get('manual_expiry_date'))
+            else:
+                expiry_date = None
             if not expiry_date:
-                flash('Invalid expiry date. Please enter a valid date.', 'danger')
-                return render_template('scanner/verify_scan.html', pending=pending)
+                flash('Select a detected date candidate or enter a valid expiry date before saving.', 'danger')
+                return render_template(
+                    'scanner/verify_scan.html',
+                    pending=pending,
+                    manual_expiry_date=request.form.get('manual_expiry_date', ''),
+                )
             product = Product(
                 user_id=current_user.id,
                 product_name=product_name,
                 category=request.form.get('category', pending.get('category', 'General')).strip() or 'General',
                 expiry_date=expiry_date,
-                ocr_text=request.form.get('ocr_text', pending.get('ocr_text', '')),
+                ocr_text=pending.get('ocr_text', ''),
                 confirmation_status='confirmed',
                 reminder_status='active',
                 notes=request.form.get('notes', pending.get('notes', '')).strip(),
@@ -214,7 +252,6 @@ def verify_scan():
             pending['category'] = request.form.get('category', pending.get('category', 'General')).strip() or 'General'
             pending['notes'] = request.form.get('notes', pending.get('notes', '')).strip()
             pending['storage_location'] = request.form.get('storage_location', pending.get('storage_location', '')).strip()
-            pending['ocr_text'] = request.form.get('ocr_text', pending.get('ocr_text', ''))
             session['pending_scan'] = pending
             return render_template('scanner/verify_scan.html', pending=pending)
 

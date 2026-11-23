@@ -5,10 +5,13 @@
     <header class="page-intro">
         <p class="eyebrow eyebrow-soft">One last check</p>
         <h1>Review your <span>scan.</span></h1>
-        <p>The expiry date read from your photo appears below. Check it against the package, then save; editing is optional.</p>
+        <p>{% if pending.expiry_date %}The expiry date read from your photo appears below. Check it against the package, then save; editing is optional.{% elif pending.expiry_candidates %}Review the possible dates read from the photo and select the one printed as the expiry date.{% else %}The scanner could not identify an expiry date. Try a clearer photo or enter the printed date manually.{% endif %}</p>
     </header>
     {% if not pending.expiry_date %}
-    <div class="scan-error" role="alert"><span aria-hidden="true">📷</span><div><strong>We couldn't read the expiry date from this photo.</strong><p>{% if pending.scan_error %}{{ pending.scan_error }}{% else %}Retake the photo with the printed date large, sharp, and upright. No product will be saved until the date can be scanned.{% endif %}</p></div></div>
+    <div class="scan-error" role="alert"><span aria-hidden="true">📷</span><div>
+        <strong>{% if pending.expiry_candidates|length > 1 %}More than one possible date needs verification.{% elif pending.expiry_candidates %}A possible date needs verification.{% else %}Expiry date not detected. Please capture a clearer image or enter the date manually.{% endif %}</strong>
+        <p>{% if pending.scan_error %}{{ pending.scan_error }}{% else %}Check focus and lighting, then select the correct printed expiry date below.{% endif %}</p>
+    </div></div>
     {% elif edit_mode %}
     <div class="scan-notice"><span aria-hidden="true">✏️</span> Update the date below, then choose “Review updated date” to verify it.</div>
     {% else %}
@@ -16,7 +19,7 @@
     {% endif %}
     <div class="card form-card verify-card">
     <div class="scan-card-heading"><span class="scan-step step-purple">02</span><div><h2>{% if edit_mode %}Edit expiry date{% else %}Product details{% endif %}</h2>
-        <p>{% if pending.expiry_date %}The scanned expiry date is filled in automatically. Save it to Inventory or edit it if needed.{% else %}Retake the photo to scan an expiry date before saving this product.{% endif %}</p>
+        <p>{% if pending.expiry_date %}The scanned expiry date is filled in automatically. Save it to Inventory or edit it if needed.{% else %}Confirm a detected date candidate or enter the printed date manually before saving.{% endif %}</p>
     </div></div>
     <form method="post">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
@@ -36,8 +39,27 @@
                 <output class="detected-date-readout" aria-live="polite">Scanned expiry date: {{ pending.expiry_date[8:10] }}/{{ pending.expiry_date[5:7] }}/{{ pending.expiry_date[:4] }}</output>
                 {% endif %}
             {% else %}
+                {% if pending.expiry_candidates %}
+                <span class="expiry-date-label">Possible expiry dates</span>
+                <small class="field-hint">Choose the date that matches the package, or enter its printed date manually.</small>
+                <div class="expiry-candidate-list">
+                    {% for candidate in pending.expiry_candidates %}
+                    <label class="expiry-candidate">
+                        <input type="radio" name="expiry_date" value="{{ candidate.date }}"
+                            {% if request.form.get('expiry_date') == candidate.date %}checked{% endif %}>
+                        <span><strong>{{ candidate.date[8:10] }}/{{ candidate.date[5:7] }}/{{ candidate.date[:4] }}</strong>
+                            <small>{{ candidate.label or 'Unlabelled date' }} · read as “{{ candidate.raw }}”
+                                {% if candidate.precision == 'month' %} · month/year only; verify the assumed last day{% endif %}
+                                {% if candidate.ocr_confidence is defined %} · OCR confidence {{ candidate.ocr_confidence }}%{% endif %}</small></span>
+                    </label>
+                    {% endfor %}
+                </div>
+                {% else %}
                 <span class="expiry-date-label">Expiry date</span>
-                <p class="field-hint">A date is required to save this product. Retake the photo to scan it.</p>
+                {% endif %}
+                <label for="manual_expiry_date">Enter date manually</label>
+                <input type="date" id="manual_expiry_date" name="manual_expiry_date"
+                    value="{{ manual_expiry_date or '' }}" {% if not pending.expiry_candidates %}required{% endif %}>
             {% endif %}
         </div>
         <div class="field">
@@ -52,11 +74,12 @@
             <label for="storage_location">Storage location</label>
             <input type="text" id="storage_location" name="storage_location" value="{{ pending.storage_location or '' }}">
         </div>
-        <details class="ocr-details">
-            <summary>View text detected on the label</summary>
+        <details class="ocr-details" open>
+            <summary>OCR results from the label</summary>
             <div class="field">
-            <label for="ocr_text">Detected text</label>
-            <textarea id="ocr_text" name="ocr_text">{{ pending.ocr_text or '' }}</textarea>
+                <label for="ocr_text">Extracted text</label>
+                <textarea id="ocr_text" name="ocr_text" readonly>{{ pending.ocr_text or '' }}</textarea>
+                <small class="field-hint">Compare this text with the package. Use “Edit Date” above to correct the expiry date before saving.</small>
             </div>
         </details>
         <div class="button-row">
@@ -67,10 +90,10 @@
                 <button class="btn btn-primary" type="submit" name="action" value="save">Save product with scanned date <span aria-hidden="true">✓</span></button>
                 <button class="btn btn-secondary" type="submit" name="action" value="edit">Edit Date</button>
                 {% endif %}
-                <button class="btn btn-outline-danger" type="submit" name="action" value="rescan" formnovalidate>Re-scan</button>
             {% else %}
-                <button class="btn btn-outline-danger" type="submit" name="action" value="rescan" formnovalidate>Retake photo and scan again</button>
+                <button class="btn btn-primary" type="submit" name="action" value="save">Confirm date and save product <span aria-hidden="true">✓</span></button>
             {% endif %}
+            <button class="btn btn-outline-danger" type="submit" name="action" value="rescan" formnovalidate>Re-scan</button>
         </div>
     </form>
 </div>
