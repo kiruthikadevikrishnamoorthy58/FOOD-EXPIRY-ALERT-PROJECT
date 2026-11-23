@@ -12,7 +12,7 @@ A Flask-based food inventory and expiry tracking web app built for the capstone 
   - Yellow: today or within 2 days
   - Red: expired
 - Product scan workflow with OCR-based expiry detection and manual validation step
-- Mobile camera capture through the phone's native camera picker, with a retained image preview and scan-status indicator
+- Laptop and mobile camera capture through the browser, with phone camera/photo-picker fallback, image preview, and scan-status indicator
 - OCR date results are shown for confirmation and can be edited before saving; OCR failures explain how to retry or enter the date manually
 - Reminder section for soon-to-expire or expired items
 - Browser reminder tones with selectable sound and volume; start and acknowledge sounds on the reminders page (no background-alert service)
@@ -75,7 +75,7 @@ The repository includes a Render Blueprint (`render.yaml`) and a Dockerfile that
 
 The blueprint sets `APP_ENV=production`, generates a strong secret key, connects the web service to PostgreSQL, and sends an HSTS header. Sign-up logs users in immediately. A signed Flask-Login remember cookie keeps them signed in for 30 days across browser restarts; logging out clears it. JWT is not used because this is a server-rendered website, not a token-authenticated API.
 
-On the scan page, choose **Open Camera** to use your phone's camera picker, capture a full-quality photo, and preview it in the scan frame. Choose **Scan date and review** to read and edit the detected date before saving. Camera capture through the browser depends on the phone and browser; you can also select an existing photo from the picker.
+On the scan page, choose **Start camera** to use a laptop webcam or mobile camera in the browser, then capture a photo. Camera permission and a secure context (HTTPS or localhost) are required. If live camera access is unavailable, choose **Open Camera** to use the device camera picker or select an existing photo. Choose **Scan date and review** to read and verify the detected expiry date before saving it to Inventory.
 
 **Free prototype limitations:** the free web service can sleep when idle, and its filesystem is ephemeral. PostgreSQL keeps accounts and inventory when the web service sleeps or redeploys, but Render's free Postgres database expires after 30 days. Export or back up data and upgrade to a paid database before that deadline if you need it long-term. Do not use the free prototype for important or sensitive data.
 

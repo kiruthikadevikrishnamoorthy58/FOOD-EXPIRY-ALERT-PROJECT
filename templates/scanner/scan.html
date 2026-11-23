@@ -22,11 +22,12 @@
         </div>
         <section class="camera-panel" aria-label="Camera scanner">
             <div class="camera-frame" id="camera-frame">
+                <video id="camera-stream" class="camera-stream" autoplay playsinline muted hidden></video>
                 <img id="captured-preview" class="camera-preview" alt="Captured food label preview" hidden>
                 <div class="camera-placeholder" id="camera-placeholder">
                     <span aria-hidden="true">🥫</span>
                     <strong>Your label goes here</strong>
-                    <small>Tap Open Camera below and capture a clear, close-up photo of the expiry date.</small>
+                    <small>Start your laptop or phone camera, or choose a photo below.</small>
                 </div>
                 <div class="camera-scan-status" id="camera-scan-status" role="status" aria-live="polite">
                     <span class="camera-status-dot" aria-hidden="true"></span>
@@ -37,14 +38,19 @@
                 <span class="scan-corner corner-bl" aria-hidden="true"></span><span class="scan-corner corner-br" aria-hidden="true"></span>
             </div>
             <p id="camera-message" class="camera-message" role="status" aria-live="polite">
-                Use Open Camera to take a full-quality photo with your phone.
+                Allow camera access, then hold the expiry date steady in the frame.
             </p>
+            <div class="camera-actions">
+                <button class="btn btn-primary" type="button" id="start-camera">Start camera</button>
+                <button class="btn btn-secondary" type="button" id="capture-photo" hidden>Capture photo</button>
+                <button class="btn btn-secondary" type="button" id="switch-camera" hidden>Switch camera</button>
+            </div>
         </section>
         <div class="upload-drop">
             <span class="upload-icon" aria-hidden="true">📷</span>
             <div class="upload-camera-choice">
                 <label for="image" class="upload-camera-button"><span aria-hidden="true">📷</span> Open Camera</label>
-                <small>Take a photo or choose one from your phone</small>
+                <small>Or open your device camera / choose an existing photo</small>
             </div>
             <input class="upload-camera-input" type="file" name="image" id="image" accept="image/png,image/jpeg" capture="environment" aria-label="Open camera or choose a photo">
             <button class="btn btn-secondary retake-photo" type="button" id="retake-photo" hidden>↻ Take another photo</button>

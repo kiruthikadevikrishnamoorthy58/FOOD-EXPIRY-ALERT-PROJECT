@@ -99,7 +99,68 @@ def extract_ocr_text_from_image(file_path):
             image = ImageOps.exif_transpose(source).convert('RGB')
 
         def read_text(source, config):
-            return pytesseract.image_to_string(source, config=config, timeout=2.5)
+            data = pytesseract.image_to_data(
+                source,
+                config=config,
+                output_type=pytesseract.Output.DICT,
+                timeout=2.5,
+            )
+            words = []
+            for index, value in enumerate(data['text']):
+                value = value.strip()
+                if not value or float(data['conf'][index]) < 0:
+                    continue
+                left = int(data['left'][index])
+                top = int(data['top'][index])
+                width = int(data['width'][index])
+                height = int(data['height'][index])
+                words.append({
+                    'text': value,
+                    'left': left,
+                    'right': left + width,
+                    'top': top,
+                    'bottom': top + height,
+                    'height': height,
+                })
+
+            rows = []
+            for word in sorted(words, key=lambda item: (item['top'], item['left'])):
+                matching_rows = []
+                for row in rows:
+                    overlap = min(row['bottom'], word['bottom']) - max(row['top'], word['top'])
+                    min_height = min(row['height'], word['height'])
+                    if min_height and overlap >= min_height * 0.3:
+                        matching_rows.append((overlap / min_height, row))
+                if matching_rows:
+                    row = max(matching_rows, key=lambda match: match[0])[1]
+                    row['words'].append(word)
+                    row['top'] = min(row['top'], word['top'])
+                    row['bottom'] = max(row['bottom'], word['bottom'])
+                    row['height'] = row['bottom'] - row['top']
+                else:
+                    rows.append({
+                        'top': word['top'],
+                        'bottom': word['bottom'],
+                        'height': word['height'],
+                        'words': [word],
+                    })
+
+            text_rows = []
+            for row in rows:
+                row_words = sorted(row['words'], key=lambda item: item['left'])
+                parts = []
+                previous = None
+                for word in row_words:
+                    if (previous
+                            and re.fullmatch(r'[0-9OQDIl|]+', previous['text'])
+                            and re.fullmatch(r'[0-9OQDIl|]+', word['text'])
+                            and word['left'] - previous['right'] <= max(previous['height'], word['height'])):
+                        parts[-1] += word['text']
+                    else:
+                        parts.append(word['text'])
+                    previous = word
+                text_rows.append(' '.join(parts))
+            return '\n'.join(text_rows)
 
         results = []
         for angle in (0, 270, 90, 180):
@@ -114,8 +175,6 @@ def extract_ocr_text_from_image(file_path):
             enhanced = ImageEnhance.Contrast(grayscale).enhance(1.7).filter(ImageFilter.SHARPEN)
             text = read_text(enhanced, '--oem 3 --psm 11')
             results.append(text)
-            if _has_labeled_expiry_date(text):
-                return text.strip()
 
         for angle in (270, 90):
             oriented = image.rotate(angle, expand=True)
@@ -135,8 +194,6 @@ def extract_ocr_text_from_image(file_path):
             enhanced = ImageEnhance.Contrast(grayscale).enhance(1.7).filter(ImageFilter.SHARPEN)
             text = read_text(enhanced, '--oem 3 --psm 11')
             results.append(text)
-            if _has_labeled_expiry_date(text):
-                return text.strip()
 
         return '\n'.join(dict.fromkeys(text.strip() for text in results if text.strip()))
     except pytesseract.TesseractNotFoundError as error:
@@ -267,33 +324,3 @@ def find_best_expiry_date(text, allow_unmarked=True):
     if not allow_unmarked or not unmarked_candidates:
         return None
     return max(unmarked_candidates)
-
-
-def _has_labeled_expiry_date(text):
-    if not text:
-        return False
-    lines = text.splitlines(keepends=True)
-    label_positions = [
-        match.start()
-        for keyword in KEYWORDS
-        for match in re.finditer(keyword, text, flags=re.IGNORECASE)
-    ]
-    if not label_positions:
-        return False
-    line_ranges = []
-    offset = 0
-    for line in lines:
-        line_ranges.append((offset, offset + len(line)))
-        offset += len(line)
-
-    def line_for_position(position):
-        return next(
-            (index for index, (start, end) in enumerate(line_ranges) if start <= position < end),
-            0,
-        )
-
-    return any(
-        abs(line_for_position(position) - line_for_position(label)) <= 2
-        for position, _ in _date_candidates(text, allow_space=True)
-        for label in label_positions
-    )

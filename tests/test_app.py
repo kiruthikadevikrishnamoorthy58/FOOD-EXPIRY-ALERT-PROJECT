@@ -224,6 +224,8 @@ def test_all_authenticated_pages_render_with_dashboard_data():
         if path == '/scan':
             assert b'id="camera-scan-line"' in response.data
             assert b'id="camera-scan-status-text">Camera off' in response.data
+            assert b'id="start-camera"' in response.data
+            assert b'id="camera-stream"' in response.data
 
 
 def test_manual_scan_requires_review_before_saving_and_supports_date_edit():
@@ -295,7 +297,8 @@ def test_rescan_returns_to_scanner_and_discards_pending_scan():
     assert rescan.status_code == 200
     assert rescan.request.path == '/scan'
     assert b'id="open-camera"' not in rescan.data
-    assert b'id="capture-photo"' not in rescan.data
+    assert b'id="capture-photo"' in rescan.data
+    assert b'id="start-camera"' in rescan.data
     assert b'id="camera-frame"' in rescan.data
     assert b'class="upload-camera-button"><span aria-hidden="true">\xf0\x9f\x93\xb7</span> Open Camera' in rescan.data
     assert b'capture="environment"' in rescan.data
@@ -351,9 +354,11 @@ def test_image_ocr_result_is_reviewed_before_it_is_saved(monkeypatch, tmp_path):
     assert save.status_code == 302
     with app.app_context():
         assert Product.query.filter_by(product_name='Cereal').count() == 1
+    inventory = client.get('/inventory')
+    assert b'Jun 11, 2030' in inventory.data
 
 
-def test_ocr_stops_after_first_pass_finds_expiry_date(monkeypatch, tmp_path):
+def test_ocr_checks_the_entire_image_in_all_orientations(monkeypatch, tmp_path):
     image_path = tmp_path / 'label.png'
     Image.new('RGB', (40, 20), color='white').save(image_path)
     calls = []
@@ -364,16 +369,24 @@ def test_ocr_stops_after_first_pass_finds_expiry_date(monkeypatch, tmp_path):
         pytesseract.pytesseract.tesseract_cmd,
     )
 
-    def fake_ocr(_image, config, timeout):
+    def fake_ocr(_image, config, output_type, timeout):
         calls.append(config)
         assert timeout == 2.5
-        return 'EXP 2030-06-11'
+        assert output_type == pytesseract.Output.DICT
+        return {
+            'text': ['EXP', '2030-06-11'],
+            'conf': ['90', '90'],
+            'left': [0, 50],
+            'top': [0, 0],
+            'width': [40, 100],
+            'height': [20, 20],
+        }
 
-    monkeypatch.setattr('food_expiry_app.utils.pytesseract.image_to_string', fake_ocr)
+    monkeypatch.setattr('food_expiry_app.utils.pytesseract.image_to_data', fake_ocr)
 
     text = extract_ocr_text_from_image(str(image_path))
 
-    assert len(calls) == 1
+    assert len(calls) == 6
     assert pytesseract.pytesseract.tesseract_cmd == 'test-tesseract'
     assert '--psm 11' in calls[0]
     assert find_best_expiry_date(text) == date(2030, 6, 11)
@@ -384,16 +397,28 @@ def test_ocr_retries_sideways_image_orientation_when_first_pass_misses_date(monk
     Image.new('RGB', (40, 20), color='white').save(image_path)
     calls = []
 
-    def fake_ocr(_image, config, timeout):
+    def fake_ocr(_image, config, output_type, timeout):
         calls.append(config)
         assert timeout == 2.5
-        return '' if len(calls) == 1 else 'BEST BEFORE 31/12/2030'
+        assert output_type == pytesseract.Output.DICT
+        if len(calls) == 1:
+            text = []
+        else:
+            text = ['BEST', 'BEFORE', '31/12/2030']
+        return {
+            'text': text,
+            'conf': ['90'] * len(text),
+            'left': [index * 50 for index in range(len(text))],
+            'top': [0] * len(text),
+            'width': [40] * len(text),
+            'height': [20] * len(text),
+        }
 
-    monkeypatch.setattr('food_expiry_app.utils.pytesseract.image_to_string', fake_ocr)
+    monkeypatch.setattr('food_expiry_app.utils.pytesseract.image_to_data', fake_ocr)
 
     text = extract_ocr_text_from_image(str(image_path))
 
-    assert len(calls) == 2
+    assert len(calls) == 6
     assert '--psm 11' in calls[0]
     assert '--psm 11' in calls[1]
     assert find_best_expiry_date(text) == date(2030, 12, 31)
@@ -405,19 +430,54 @@ def test_ocr_checks_more_orientations_when_first_pass_only_finds_preparation_dat
     image_path = tmp_path / 'label.png'
     Image.new('RGB', (40, 20), color='white').save(image_path)
     calls = []
-    responses = ('MFG 01/01/2026', 'USE BY 31/12/2026')
+    responses = (['MFG', '01/01/2026'], ['USE', 'BY', '31/12/2026'])
 
-    def fake_ocr(_image, config, timeout):
+    def fake_ocr(_image, config, output_type, timeout):
         calls.append(config)
         assert timeout == 2.5
-        return responses[min(len(calls) - 1, len(responses) - 1)]
+        assert output_type == pytesseract.Output.DICT
+        text = responses[min(len(calls) - 1, len(responses) - 1)]
+        return {
+            'text': text,
+            'conf': ['90'] * len(text),
+            'left': [index * 50 for index in range(len(text))],
+            'top': [0] * len(text),
+            'width': [40] * len(text),
+            'height': [20] * len(text),
+        }
 
-    monkeypatch.setattr('food_expiry_app.utils.pytesseract.image_to_string', fake_ocr)
+    monkeypatch.setattr('food_expiry_app.utils.pytesseract.image_to_data', fake_ocr)
 
     text = extract_ocr_text_from_image(str(image_path))
 
-    assert len(calls) == 2
+    assert len(calls) == 6
     assert find_best_expiry_date(text) == date(2026, 12, 31)
+
+
+def test_ocr_uses_word_positions_to_match_expiry_label_and_split_date(monkeypatch, tmp_path):
+    image_path = tmp_path / 'label.png'
+    Image.new('RGB', (40, 20), color='white').save(image_path)
+    words = ['USE', 'BY', '28107', '126']
+    left = [0, 35, 100, 152]
+    widths = [30, 20, 50, 30]
+
+    def fake_ocr(_image, config, output_type, timeout):
+        assert timeout == 2.5
+        assert output_type == pytesseract.Output.DICT
+        return {
+            'text': words,
+            'conf': ['90'] * len(words),
+            'left': left,
+            'top': [100, 100, 95, 95],
+            'width': widths,
+            'height': [30, 30, 32, 32],
+        }
+
+    monkeypatch.setattr('food_expiry_app.utils.pytesseract.image_to_data', fake_ocr)
+
+    text = extract_ocr_text_from_image(str(image_path))
+
+    assert find_best_expiry_date(text) == date(2026, 7, 28)
 
 
 def test_ocr_parses_slashes_misread_as_ones_near_use_by_label():
