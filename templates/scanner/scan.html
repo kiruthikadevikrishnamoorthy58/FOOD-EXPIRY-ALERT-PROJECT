@@ -74,3 +74,35 @@
 </div>
 <script src="{{ url_for('static', filename='js/camera.js') }}" defer></script>
 {% endblock %}
+
+{% if result %}
+
+    {% if result.success %}
+
+        <h2>Expiry Date Detected!</h2>
+
+        <h1>{{ result.expiry_date }}</h1>
+
+        <p>Is this expiry date correct?</p>
+
+        <button type="button" onclick="confirmDate()">
+            OK
+        </button>
+
+        <button type="button" onclick="location.reload()">
+            Re-scan
+        </button>
+
+    {% else %}
+
+        <h3>Expiry Date Not Detected</h3>
+
+        <p>{{ result.message }}</p>
+
+        <button type="button" onclick="location.reload()">
+            Re-scan
+        </button>
+
+    {% endif %}
+
+{% endif %}
